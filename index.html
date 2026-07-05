@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Weather Unified Chart MVP</title>
+  <title>Weather</title>
   <style>
     :root {
       color-scheme: dark;
@@ -44,68 +44,125 @@
     .page {
       width: min(1180px, 100%);
       margin: 0 auto;
-      padding: 28px clamp(14px, 3vw, 32px) 36px;
+      padding: 16px clamp(14px, 3vw, 32px) calc(36px + env(safe-area-inset-bottom));
     }
 
     .weather-view {
       display: grid;
-      gap: 18px;
+      gap: 12px;
     }
 
     .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 12px;
+    }
+
+    .location-title {
       display: flex;
-      align-items: end;
-      justify-content: space-between;
-      gap: 18px;
-    }
-
-    .eyebrow {
-      margin: 0 0 6px;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    h1 {
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
       margin: 0;
-      font-size: clamp(30px, 5vw, 56px);
-      line-height: 1;
-      font-weight: 800;
+      font-size: clamp(22px, 4vw, 34px);
+      line-height: 1.08;
+      font-weight: 850;
       overflow-wrap: anywhere;
     }
 
-    .summary {
-      margin: 8px 0 0;
+    .title-separator {
+      color: var(--muted-2);
+    }
+
+    .date-switcher {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      white-space: nowrap;
+    }
+
+    .title-arrow,
+    .title-date {
+      display: inline-grid;
+      place-items: center;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      line-height: 1;
+      padding: 0;
+    }
+
+    .title-arrow {
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
       color: var(--muted);
-      font-size: clamp(15px, 2vw, 18px);
-      overflow-wrap: anywhere;
+    }
+
+    .title-arrow:hover:not(:disabled),
+    .title-arrow:focus-visible,
+    .title-date:hover:not(:disabled),
+    .title-date:focus-visible {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      outline: none;
+    }
+
+    .title-arrow:focus-visible,
+    .title-date:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .title-arrow:disabled,
+    .title-date:disabled {
+      cursor: default;
+    }
+
+    .title-arrow:disabled {
+      opacity: 0.42;
+    }
+
+    .title-date {
+      border-radius: 8px;
+      padding: 2px 4px 4px;
+      text-align: center;
+    }
+
+    .title-arrow svg {
+      width: 24px;
+      height: 24px;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
 
     .current-chip {
-      display: grid;
-      grid-template-columns: auto 1fr;
+      display: flex;
       align-items: center;
-      gap: 12px;
-      min-width: 208px;
+      gap: 10px;
+      min-width: 0;
       max-width: 100%;
-      padding: 12px 14px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.06);
+      margin-top: 7px;
     }
 
     .weather-icon {
       position: relative;
-      width: 42px;
-      height: 42px;
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
     }
 
     .weather-icon::before {
       content: "";
       position: absolute;
-      width: 28px;
-      height: 28px;
+      width: 23px;
+      height: 23px;
       border-radius: 50%;
       background: #ffd15c;
       left: 2px;
@@ -116,26 +173,76 @@
     .weather-icon::after {
       content: "";
       position: absolute;
-      width: 30px;
-      height: 16px;
-      left: 12px;
-      bottom: 8px;
+      width: 25px;
+      height: 13px;
+      left: 10px;
+      bottom: 7px;
       border-radius: 18px;
       background: #edf2f7;
       box-shadow: -10px 1px 0 -2px #edf2f7, 7px -7px 0 -5px #edf2f7;
     }
 
-    .current-chip b {
-      display: block;
-      font-size: 28px;
-      line-height: 1;
+    .current-copy {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+      flex-wrap: nowrap;
+      color: var(--muted);
+      font-size: 16px;
+      overflow: hidden;
     }
 
-    .current-chip span {
-      color: var(--muted);
-      font-size: 13px;
+    .current-copy b {
+      flex: 0 0 auto;
+      color: var(--text);
+      font-size: 22px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    #currentDesc {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
+    .outlier-summary {
       min-width: 0;
-      overflow-wrap: anywhere;
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .outlier-summary::before {
+      content: "·";
+      margin-right: 8px;
+      color: var(--muted-2);
+    }
+
+    .outlier-summary[hidden] {
+      display: none;
+    }
+
+    .settings-button {
+      margin-top: 1px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .settings-panel {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+
+    .settings-panel[hidden] {
+      display: none;
     }
 
     .data-panel {
@@ -143,10 +250,10 @@
       grid-template-columns: 140px 140px auto 1fr;
       gap: 8px;
       align-items: end;
-      padding: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.045);
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
     }
 
     .field {
@@ -212,14 +319,6 @@
       border-radius: 8px;
       background: linear-gradient(180deg, rgba(32, 36, 43, 0.96), rgba(18, 20, 25, 0.98));
       box-shadow: var(--shadow);
-    }
-
-    .chart-header {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 14px;
-      align-items: start;
-      padding: 18px 20px 0;
     }
 
     .readout-time {
@@ -293,14 +392,14 @@
     }
 
     .icon-button:focus-visible,
-    .legend-item:focus-visible {
+    .trend-item:focus-visible {
       outline: 2px solid var(--focus);
       outline-offset: 2px;
     }
 
     .chart-wrap {
       position: relative;
-      padding: 10px 12px 6px;
+      padding: 10px 0 6px;
       touch-action: none;
       user-select: none;
     }
@@ -406,61 +505,6 @@
       stroke-width: 0.8;
     }
 
-    .legend {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
-      padding: 0 var(--legend-right, 20px) 18px var(--legend-left, 20px);
-    }
-
-    .legend-item {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 8px;
-      align-items: center;
-      min-width: 0;
-      padding: 9px 10px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.055);
-      color: var(--text);
-      cursor: pointer;
-      text-align: left;
-    }
-
-    .legend-item[aria-pressed="true"] {
-      border-color: rgba(255, 255, 255, 0.32);
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .swatch {
-      width: 10px;
-      height: 28px;
-      border-radius: 8px;
-      background: var(--swatch);
-      box-shadow: 0 0 14px color-mix(in srgb, var(--swatch) 45%, transparent);
-    }
-
-    .legend-label,
-    .legend-value {
-      display: block;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .legend-label {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .legend-value {
-      margin-top: 2px;
-      font-size: 15px;
-      font-weight: 750;
-    }
-
     .details {
       display: grid;
       grid-template-columns: 1.1fr 0.9fr;
@@ -490,67 +534,161 @@
       gap: 9px;
     }
 
-    .comparison-list {
+    .trend-grid {
       display: grid;
-      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
     }
 
-    .aq-history-row {
+    .trend-item {
       display: grid;
-      grid-template-columns: minmax(56px, 0.8fr) minmax(42px, 0.45fr) minmax(54px, 0.55fr) minmax(164px, 1.8fr);
-      gap: 10px;
-      align-items: center;
+      grid-template-rows: auto auto;
+      gap: 2px;
+      align-content: center;
+      min-width: 0;
+      height: 54px;
+      padding: 5px 6px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.055);
       color: var(--muted);
-      font-size: 12px;
-    }
-
-    .aq-history-label {
-      color: var(--text);
-      font-weight: 850;
-    }
-
-    .aq-history-unit {
-      color: var(--muted-2);
-      font-size: 10px;
-      font-weight: 750;
+      cursor: pointer;
+      font: inherit;
       text-align: left;
-      white-space: nowrap;
     }
 
-    .aq-history-value {
-      color: var(--text);
-      font-weight: 850;
-      text-align: right;
-      white-space: nowrap;
+    .trend-item[aria-pressed="true"] {
+      border-color: color-mix(in srgb, var(--trend-color) 52%, rgba(255, 255, 255, 0.28));
+      background: color-mix(in srgb, var(--trend-color) 13%, rgba(255, 255, 255, 0.08));
     }
 
-    .aq-history-range {
+    .trend-top {
       display: grid;
-      grid-template-columns: 4.2ch minmax(88px, 1fr) 4.2ch;
-      gap: 8px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 5px;
       align-items: center;
       min-width: 0;
     }
 
-    .aq-range-number {
+    .trend-label,
+    .trend-value,
+    .trend-number,
+    .trend-unit {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .trend-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      min-width: 0;
+      height: 18px;
       color: var(--muted);
-      font-size: 11px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .trend-label-text {
+      display: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .trend-icon {
+      display: block;
+      width: 18px;
+      height: 18px;
+      color: rgba(244, 247, 251, 0.9);
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .trend-item.is-focused .trend-label,
+    .trend-item:focus-visible .trend-label {
+      justify-content: flex-start;
+      width: auto;
+    }
+
+    .trend-item.is-focused .trend-icon,
+    .trend-item:focus-visible .trend-icon {
+      display: none;
+    }
+
+    .trend-item.is-focused .trend-label-text,
+    .trend-item:focus-visible .trend-label-text {
+      display: block;
+    }
+
+    .trend-value {
+      display: flex;
+      justify-content: flex-end;
+      align-items: baseline;
+      gap: 3px;
+      max-width: 72px;
+      color: var(--text);
+      text-align: right;
+    }
+
+    .trend-number {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 850;
+      text-align: right;
+    }
+
+    .trend-unit {
+      color: var(--muted-2);
+      font-size: 10px;
+      font-weight: 750;
+      text-align: left;
+    }
+
+    .aq-history-range {
+      position: relative;
+      display: block;
+      width: 100%;
+      height: 22px;
+      min-width: 0;
+    }
+
+    .aq-range-number {
+      position: absolute;
+      z-index: 1;
+      top: 12px;
+      max-width: 44%;
+      color: var(--muted);
+      font-size: 9px;
       font-weight: 800;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .aq-range-number:first-child {
-      text-align: right;
-    }
-
-    .aq-range-number:last-child {
+      left: 0;
       text-align: left;
     }
 
+    .aq-range-number:last-child {
+      right: 0;
+      text-align: right;
+    }
+
     .aq-range-line {
-      position: relative;
-      height: 14px;
-      min-width: 88px;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 12px;
+      min-width: 0;
     }
 
     .aq-range-line::before {
@@ -558,7 +696,7 @@
       position: absolute;
       left: 0;
       right: 0;
-      top: 6px;
+      top: 4px;
       height: 4px;
       border-radius: 999px;
       background: rgba(255, 255, 255, 0.055);
@@ -572,7 +710,7 @@
       position: absolute;
       left: var(--recent-outline-start);
       width: var(--recent-outline-width);
-      top: 5px;
+      top: 3px;
       height: 1px;
       border-radius: 999px;
       background: var(--aq-color);
@@ -584,7 +722,7 @@
     .aq-range-point {
       position: absolute;
       left: var(--point-pos);
-      top: 5px;
+      top: 3px;
       width: 4px;
       height: 6px;
       border-radius: 999px;
@@ -599,7 +737,7 @@
       left: var(--pos);
       top: 0;
       width: 8px;
-      height: 14px;
+      height: 12px;
       display: grid;
       place-items: center;
       transform: translateX(-50%);
@@ -616,14 +754,16 @@
 
     .aq-range-marker[data-trend="rising"]::before,
     .aq-range-marker[data-trend="falling"]::before {
+      display: grid;
+      place-items: center;
       width: auto;
-      height: auto;
+      height: 12px;
       border-radius: 0;
       background: transparent;
       color: rgba(255, 255, 255, 0.96);
       font-size: 10px;
       font-weight: 950;
-      line-height: 1;
+      line-height: 12px;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
     }
 
@@ -633,12 +773,6 @@
 
     .aq-range-marker[data-trend="falling"]::before {
       content: "<";
-    }
-
-    .comparison-empty {
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.45;
     }
 
     .event-row {
@@ -681,8 +815,7 @@
 
     @media (max-width: 860px) {
       .topbar {
-        align-items: stretch;
-        flex-direction: column;
+        grid-template-columns: minmax(0, 1fr) auto;
       }
 
       .data-panel {
@@ -694,32 +827,31 @@
         grid-column: 1 / -1;
       }
 
-      .topbar,
-      .chart-header,
       .details {
         grid-template-columns: 1fr;
-      }
-
-      .current-chip {
-        width: 100%;
-      }
-
-      .legend {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
     @media (max-width: 560px) {
       .page {
-        padding-inline: 10px;
+        padding: 12px 10px calc(28px + env(safe-area-inset-bottom));
       }
 
-      .chart-header {
-        padding-inline: 12px;
+      .location-title {
+        font-size: 22px;
       }
 
-      .legend {
-        grid-template-columns: 1fr;
+      .current-chip {
+        gap: 8px;
+      }
+
+      .current-copy {
+        gap: 6px;
+        font-size: 14px;
+      }
+
+      .current-copy b {
+        font-size: 20px;
       }
 
       .data-panel {
@@ -732,12 +864,9 @@
         grid-column: auto;
       }
 
-      .load-button {
-        width: 100%;
-      }
-
       #weatherChart {
-        min-height: 390px;
+        height: min(62vh, 520px);
+        min-height: 410px;
       }
 
       .readout-time {
@@ -749,9 +878,25 @@
         white-space: normal;
       }
 
-      .aq-history-row {
-        grid-template-columns: minmax(52px, 0.8fr) minmax(34px, 0.4fr) minmax(42px, 0.45fr) minmax(104px, 1.5fr);
-        gap: 8px;
+      .trend-grid {
+        gap: 6px;
+      }
+
+      .trend-item {
+        height: 54px;
+        padding: 5px;
+      }
+
+      .trend-top {
+        gap: 4px;
+      }
+
+      .trend-panel h2 {
+        display: none;
+      }
+
+      .info-panel {
+        padding: 12px;
       }
     }
   </style>
@@ -760,60 +905,56 @@
   <main class="page">
     <section class="weather-view" aria-label="Unified weather chart prototype">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">Prague forecast prototype</p>
-          <h1>Unified Weather</h1>
-          <p class="summary">One normalized chart area for weather, particulate matter, dust, and 𖡼 history.</p>
+        <div class="location-summary">
+          <h1 class="location-title">
+            <span id="currentCity">Prague</span>
+            <span class="title-separator">·</span>
+            <span class="date-switcher">
+              <button class="title-arrow" id="prevDay" type="button" aria-label="Previous day">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+              </button>
+              <button class="title-date" id="todayDay" type="button" aria-label="Today" title="Today">
+                <span id="currentDateLabel">Today</span>
+              </button>
+              <button class="title-arrow" id="nextDay" type="button" aria-label="Next day">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+              </button>
+            </span>
+          </h1>
+          <div class="current-chip" aria-label="Current weather">
+            <span class="weather-icon" aria-hidden="true"></span>
+            <span class="current-copy">
+              <b id="currentTemp">23&deg;C</b>
+              <span id="currentDesc">partly cloudy</span>
+              <span class="outlier-summary" id="outlierSummary" hidden></span>
+            </span>
+          </div>
         </div>
-        <div class="current-chip" aria-label="Current weather">
-          <span class="weather-icon" aria-hidden="true"></span>
-          <span>
-            <b id="currentTemp">23&deg;C</b>
-            <span id="currentDesc">Clouds building, rain risk after 18:00</span>
-          </span>
-        </div>
+        <button class="icon-button settings-button" id="settingsButton" type="button" aria-label="Settings" aria-expanded="false" aria-controls="settingsPanel">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"></path>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.08A1.7 1.7 0 0 0 8.97 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.08A1.7 1.7 0 0 0 4.6 8.97a1.7 1.7 0 0 0-.34-1.88l-.06-.06A2 2 0 1 1 7.03 4.2l.06.06A1.7 1.7 0 0 0 8.97 4.6 1.7 1.7 0 0 0 10 3.04V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1.03 1.52 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8.97 1.7 1.7 0 0 0 20.96 10H21a2 2 0 1 1 0 4h-.08A1.7 1.7 0 0 0 19.4 15Z"></path>
+          </svg>
+        </button>
       </header>
 
-      <form class="data-panel" id="dataForm">
-        <label class="field">
-          <span>Latitude</span>
-          <input id="latitude" inputmode="decimal" value="50.03">
-        </label>
-        <label class="field">
-          <span>Longitude</span>
-          <input id="longitude" inputmode="decimal" value="14.48">
-        </label>
-        <button class="load-button" id="loadWeather" type="submit">Load</button>
-        <div class="data-status" id="dataStatus">Sample data. Load Open-Meteo for live hourly weather and air-quality data.</div>
-      </form>
+      <section class="settings-panel" id="settingsPanel" hidden>
+        <form class="data-panel" id="dataForm">
+          <label class="field">
+            <span>Latitude</span>
+            <input id="latitude" inputmode="decimal" value="50.03">
+          </label>
+          <label class="field">
+            <span>Longitude</span>
+            <input id="longitude" inputmode="decimal" value="14.48">
+          </label>
+          <button class="load-button" id="loadWeather" type="submit">Load</button>
+          <div class="data-status" id="dataStatus">Sample data. Load Open-Meteo for live hourly weather and air-quality data.</div>
+        </form>
+        <p class="normalization-note">Y-space uses returned historical ranges. Read values in the trends or scrubber, not from vertical position.</p>
+      </section>
 
       <section class="chart-panel">
-        <div class="chart-header">
-          <div>
-            <div class="readout-time">
-              <strong id="selectedTime">18:00</strong>
-              <span class="readout-date" id="selectedDate">Sample day</span>
-              <span id="selectedSummary">~28&deg;C, rain 25%</span>
-            </div>
-            <p class="normalization-note">Y-space uses returned historical ranges. Read values in the legend or scrubber, not from vertical position.</p>
-          </div>
-          <div class="chart-actions" aria-label="Chart controls">
-            <button class="icon-button" id="prevDay" type="button" aria-label="Previous day">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
-            </button>
-            <button class="icon-button" id="todayDay" type="button" aria-label="Today" title="Today">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="4" y="5" width="16" height="15" rx="2"></rect>
-                <path d="M8 3v4M16 3v4M4 10h16"></path>
-                <circle class="filled" cx="12" cy="15" r="2"></circle>
-              </svg>
-            </button>
-            <button class="icon-button" id="nextDay" type="button" aria-label="Next day">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
-            </button>
-          </div>
-        </div>
-
         <div class="chart-wrap" id="chartWrap">
           <svg id="weatherChart" viewBox="0 0 1000 560" role="img" aria-label="Weather chart">
             <desc id="chartDesc">A single shared chart area with normalized weather metrics and a shared time scrubber.</desc>
@@ -834,15 +975,12 @@
           </svg>
         </div>
 
-        <div class="legend" id="legend" aria-label="Metric legend"></div>
       </section>
 
       <section class="details" aria-label="Chart notes">
-        <article class="info-panel">
-          <h2>AQ history</h2>
-          <div class="comparison-list" id="airComparisonList">
-            <p class="comparison-empty">Load Open-Meteo to compare this date with previous years.</p>
-          </div>
+        <article class="info-panel trend-panel">
+          <h2>Trends</h2>
+          <div class="trend-grid" id="legend" aria-label="Metric trends"></div>
         </article>
         <article class="info-panel">
           <h2>Notable events</h2>
@@ -907,6 +1045,9 @@
     const airQualityKeys = ["pm2_5", "alder_pollen", "birch_pollen", "grass_pollen", "mugwort_pollen", "olive_pollen", "dust"];
     const pollenKeys = ["alder_pollen", "birch_pollen", "grass_pollen", "mugwort_pollen", "olive_pollen"];
     const comparisonYearsBack = 5;
+    const knownLocations = [
+      { name: "Prague", lat: 50.03, lon: 14.48, tolerance: 0.25 }
+    ];
 
     const fallbackRanges = {
       actual: { min: -8, max: 42 },
@@ -954,7 +1095,7 @@
     const windContourShadow = "#04584f";
     const visibilityMode = "mask";
     const visibilityIntensity = 0.8;
-    const layout = { left: 58, right: 112, top: 70, bottom: 46, width: 1000, height: 560 };
+    const layout = { left: 0, right: 0, top: 70, bottom: 46, width: 1000, height: 560 };
 
     const plot = document.getElementById("plot");
     const legend = document.getElementById("legend");
@@ -962,7 +1103,6 @@
     const selectedDateLabel = document.getElementById("selectedDate");
     const selectedSummary = document.getElementById("selectedSummary");
     const eventList = document.getElementById("eventList");
-    const airComparisonList = document.getElementById("airComparisonList");
     const chartWrap = document.getElementById("chartWrap");
     const svg = document.getElementById("weatherChart");
     const prevDay = document.getElementById("prevDay");
@@ -970,6 +1110,11 @@
     const nextDay = document.getElementById("nextDay");
     const currentTemp = document.getElementById("currentTemp");
     const currentDesc = document.getElementById("currentDesc");
+    const currentCity = document.getElementById("currentCity");
+    const currentDateLabel = document.getElementById("currentDateLabel");
+    const outlierSummary = document.getElementById("outlierSummary");
+    const settingsButton = document.getElementById("settingsButton");
+    const settingsPanel = document.getElementById("settingsPanel");
     const dataForm = document.getElementById("dataForm");
     const dataStatus = document.getElementById("dataStatus");
     const latitudeInput = document.getElementById("latitude");
@@ -1012,8 +1157,8 @@
       layout.height = Math.max(320, Math.round(bounds.height || 560));
 
       const compact = layout.width < 520;
-      layout.left = compact ? 34 : 58;
-      layout.right = compact ? 78 : 112;
+      layout.left = 0;
+      layout.right = 0;
       layout.top = compact ? 58 : 70;
       layout.bottom = compact ? 34 : 46;
 
@@ -1475,60 +1620,6 @@
         label.textContent = String(hour).padStart(2, "0");
         group.appendChild(label);
       });
-      const stats = dailyStats();
-      const periodHigh = makeEl("text", {
-        x: 14,
-        y: layout.top + 8,
-        class: "axis-label temp-axis temp-axis-period",
-        style: `fill: ${tempColor(stats.periodHighFeels)}`,
-        "text-anchor": "start"
-      });
-      periodHigh.textContent = `${Math.round(stats.periodHighFeels)}°`;
-      const periodLow = makeEl("text", {
-        x: 14,
-        y: layout.top + chartHeight,
-        class: "axis-label low temp-axis temp-axis-period",
-        style: `fill: ${tempColor(stats.periodLowFeels)}`,
-        "text-anchor": "start"
-      });
-      periodLow.textContent = `${Math.round(stats.periodLowFeels)}°`;
-      const dailyHigh = makeEl("text", {
-        x: 14,
-        y: clamp(y("feels", stats.highFeels.feels) + 4, layout.top + 14, layout.top + chartHeight - 10),
-        class: "axis-label temp-axis temp-axis-daily",
-        style: `fill: ${tempColor(stats.highFeels.feels)}`,
-        "text-anchor": "start"
-      });
-      dailyHigh.textContent = `${Math.round(stats.highFeels.feels)}°`;
-      const dailyLow = makeEl("text", {
-        x: 14,
-        y: clamp(y("feels", stats.lowFeels.feels) + 4, layout.top + 14, layout.top + chartHeight - 10),
-        class: "axis-label temp-axis temp-axis-daily",
-        style: `fill: ${tempColor(stats.lowFeels.feels)}`,
-        "text-anchor": "start"
-      });
-      dailyLow.textContent = `${Math.round(stats.lowFeels.feels)}°`;
-      const rightX = layout.width - layout.right + 10;
-      group.appendChild(periodHigh);
-      group.appendChild(periodLow);
-      group.appendChild(dailyHigh);
-      group.appendChild(dailyLow);
-
-      if (stats.maxRain.rain > 0) {
-        drawRightValueUnitLabel(
-          group,
-          stats.maxRain.rain.toFixed(1),
-          "mm",
-          rightX,
-          rightAxisY(y("rain", stats.maxRain.rain) + 4, 22),
-          "axis-label rain-axis"
-        );
-      }
-
-      drawWindAxisLabel(group, `~${Math.round(stats.avgWind)}`, rightX, rightAxisY(y("wind", stats.avgWind) + 4, 40));
-      if (stats.maxWindValue > stats.avgWind * 3) {
-        drawWindAxisLabel(group, String(Math.round(stats.maxWindValue)), rightX, rightAxisY(y("gust", stats.maxWindValue) + 4, 40));
-      }
       plot.appendChild(group);
     }
 
@@ -2505,9 +2596,11 @@
     }
 
     function setScrubberVisible(visible) {
+      const changed = scrubberVisible !== visible;
       scrubberVisible = visible;
       const group = document.getElementById("scrubber");
       if (group) group.setAttribute("display", visible ? "inline" : "none");
+      if (changed) updateLegendValues();
     }
 
     function drawScrubber() {
@@ -2710,22 +2803,296 @@
       if (suppressedHoverMetric && !visibleIds.has(suppressedHoverMetric)) suppressedHoverMetric = null;
     }
 
+    function finiteMetricValues(rows, key) {
+      return rows.map((row) => row[key]).filter(Number.isFinite);
+    }
+
+    function minFiniteValue(rows, key) {
+      const values = finiteMetricValues(rows, key);
+      return values.length ? Math.min(...values) : null;
+    }
+
+    function sumFiniteValues(rows, key) {
+      return finiteMetricValues(rows, key).reduce((sum, value) => sum + value, 0);
+    }
+
+    function fixedNumber(value, places = 1) {
+      return Number.isFinite(value) ? round(value, places).toFixed(places) : "0.0";
+    }
+
+    function trendValueParts(value, unit = "") {
+      return { value, unit };
+    }
+
+    function dailyTrendSummaryParts(metric, rows) {
+      if (!rows.length) return trendValueParts("n/a");
+
+      if (metric.id === "temperature") {
+        const low = minFiniteValue(rows, "actual");
+        const high = maxFiniteValue(rows, "actual");
+        return Number.isFinite(low) && Number.isFinite(high) ? trendValueParts(`${round(low)}-${round(high)}`, "&deg;C") : trendValueParts("n/a");
+      }
+
+      if (metric.id === "rain") {
+        const totalRain = sumFiniteValues(rows, "rain");
+        return trendValueParts(fixedNumber(totalRain), "mm");
+      }
+
+      if (metric.id === "wind") {
+        const windValues = finiteMetricValues(rows, "wind");
+        const gustValues = rows.map((row) => Math.max(row.wind, row.gust ?? row.wind)).filter(Number.isFinite);
+        if (!windValues.length || !gustValues.length) return trendValueParts("n/a");
+        return trendValueParts(`${round(Math.min(...windValues))}-${round(Math.max(...gustValues))}`, windUnitHtml());
+      }
+
+      if (metric.id === "humidity") {
+        const high = maxFiniteValue(rows, "humidity");
+        return Number.isFinite(high) ? trendValueParts(String(round(high)), "%") : trendValueParts("n/a");
+      }
+
+      if (metric.id === "visibility") {
+        const high = maxFiniteValue(rows, "visibility");
+        return Number.isFinite(high) ? trendValueParts(String(round(high, 1)), "km") : trendValueParts("n/a");
+      }
+
+      if (metric.id === "pm2_5" || metric.id === "dust") return trendValueParts(aqRangeLabel(maxFiniteValue(rows, metric.id)), "&micro;g/m&sup3;");
+      if (pollenKeys.includes(metric.id)) return trendValueParts(aqRangeLabel(maxFiniteValue(rows, metric.id)), "𖡼/m&sup3;");
+      return trendValueParts(metric.value(rows[0]));
+    }
+
+    function scrubTrendValueParts(metric, data) {
+      if (metric.id === "temperature") return trendValueParts(`${data.actual}/~${data.feels}`, "&deg;C");
+      if (metric.id === "rain") return trendValueParts(fixedNumber(data.rain), "mm");
+      if (metric.id === "wind") return trendValueParts(`${data.wind}-${data.gust}`, windUnitHtml());
+      if (metric.id === "humidity") return trendValueParts(String(data.humidity), "%");
+      if (metric.id === "visibility") return trendValueParts(String(data.visibility), "km");
+      if (metric.id === "pm2_5" || metric.id === "dust") return trendValueParts(aqRangeLabel(data[metric.id]), "&micro;g/m&sup3;");
+      if (pollenKeys.includes(metric.id)) return trendValueParts(aqRangeLabel(data[metric.id]), "𖡼/m&sup3;");
+      return trendValueParts(metric.value(data));
+    }
+
+    function trendDisplayParts(metric, data = dataForHour(selectedHour)) {
+      return scrubberVisible ? scrubTrendValueParts(metric, data) : dailyTrendSummaryParts(metric, dayRowsForVisibility());
+    }
+
+    function trendDisplayValue(metric, data = dataForHour(selectedHour)) {
+      const parts = trendDisplayParts(metric, data);
+      return `
+        <span class="trend-number">${parts.value}</span>
+        ${parts.unit ? `<span class="trend-unit">${parts.unit}</span>` : ""}
+      `;
+    }
+
+    function trendRangeValue(metric, value) {
+      if (!Number.isFinite(value)) return "";
+      if (metric.id === "temperature") return `${round(value)}&deg;`;
+      if (metric.id === "rain") return fixedNumber(value);
+      if (metric.id === "visibility") return String(round(value, 1));
+      if (isAirQualityMetric(metric.id)) return aqRangeLabel(value);
+      return String(round(value));
+    }
+
+    function datedRowsForTrendWindow() {
+      const selectedDate = selectedOpenMeteoDate();
+      if (selectedDate && openMeteoRows.length) {
+        const startDate = addDays(selectedDate, -29);
+        return openMeteoRows.filter((row) => row.date >= startDate && row.date <= selectedDate && row.h < 24);
+      }
+      const fallbackDate = selectedDateForGlyphs();
+      return dayRowsForVisibility().map((row) => ({
+        ...row,
+        date: row.date || fallbackDate
+      }));
+    }
+
+    function trendHistoryMetricValue(rows, metric) {
+      if (metric.id === "temperature") return averageFinite(rows, "actual");
+      if (metric.id === "rain") {
+        const values = finiteMetricValues(rows, "rain");
+        return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
+      }
+      if (metric.id === "wind") return averageFinite(rows, "wind");
+      if (metric.id === "humidity") return averageFinite(rows, "humidity");
+      if (metric.id === "visibility") return maxFiniteValue(rows, "visibility");
+      if (isAirQualityMetric(metric.id)) return airHistoryMetricValue(rows, metric.id);
+      return averageFinite(rows, metric.id);
+    }
+
+    function trendDailyValues(rows, metric) {
+      const rowsByDate = rows
+        .filter((row) => row.date && row.h < 24)
+        .reduce((groups, row) => {
+          if (!groups.has(row.date)) groups.set(row.date, []);
+          groups.get(row.date).push(row);
+          return groups;
+        }, new Map());
+      return [...rowsByDate.entries()]
+        .map(([date, dayRows]) => ({
+          date,
+          value: trendHistoryMetricValue(dayRows, metric)
+        }))
+        .filter((item) => Number.isFinite(item.value));
+    }
+
+    function trendHistoryRange(metric) {
+      const selectedDate = selectedOpenMeteoDate() || selectedDateForGlyphs();
+      const windowRows = datedRowsForTrendWindow();
+      const dailyValues = trendDailyValues(windowRows, metric);
+      const currentValue = dailyValues.find((item) => item.date === selectedDate)?.value;
+      const values = dailyValues.map((item) => item.value).filter(Number.isFinite);
+      if (!values.length || !Number.isFinite(currentValue)) return null;
+
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const ratio = aqRangePosition(min, max, currentValue);
+      const recentRange = recentAqValueRange(dailyValues, selectedDate);
+      const recentOutline = recentRange
+        ? aqRangeSegment(min, max, recentRange.min, recentRange.max)
+        : { start: 0, width: 0 };
+      const points = dailyValues
+        .map((item) => {
+          const pointRatio = aqRangePosition(min, max, item.value);
+          if (!Number.isFinite(pointRatio)) return null;
+          const ageDays = dateDistanceDays(item.date, selectedDate);
+          return {
+            ratio: pointRatio,
+            opacity: recentAqOpacity(ageDays),
+            date: item.date
+          };
+        })
+        .filter(Boolean);
+
+      return {
+        key: metric.id,
+        label: metric.label,
+        color: metric.color,
+        min,
+        max,
+        current: currentValue,
+        ratio,
+        trend: aqTrendDirection(dailyValues, selectedDate),
+        recentOutline,
+        points,
+        rangeValue: (value) => trendRangeValue(metric, value)
+      };
+    }
+
+    function airHistoryRowsByKey() {
+      return new Map(aqHistoryRows(visibleAirHistoryColumns()).map((row) => [
+        row.key,
+        {
+          ...row,
+          rangeValue: aqRangeLabel
+        }
+      ]));
+    }
+
+    function trendRangeForMetric(metric, airRowsByKey) {
+      if (isAirQualityMetric(metric.id) && airRowsByKey.has(metric.id)) return airRowsByKey.get(metric.id);
+      return trendHistoryRange(metric);
+    }
+
+    function renderTrendRange(row) {
+      if (!row) {
+        return `
+          <span class="aq-history-range" aria-hidden="true">
+            <span class="aq-range-number"></span>
+            <span class="aq-range-line"></span>
+            <span class="aq-range-number"></span>
+          </span>
+        `;
+      }
+
+      const formatRangeValue = row.rangeValue || aqRangeLabel;
+      return `
+        <span class="aq-history-range" aria-label="${row.label} range ${formatRangeValue(row.min)} to ${formatRangeValue(row.max)}, current ${formatRangeValue(row.current)}${aqTrendLabel(row.trend)}">
+          <span class="aq-range-number">${formatRangeValue(row.min)}</span>
+          <span class="aq-range-line">
+            ${row.recentOutline.width > 0 ? `<span class="aq-range-recent-outline"></span>` : ""}
+            ${row.points.map((point) => `<span class="aq-range-point" style="--point-pos: ${(point.ratio * 100).toFixed(1)}%; --point-opacity: ${point.opacity.toFixed(2)}"></span>`).join("")}
+            <span class="aq-range-marker" data-trend="${row.trend}" style="--pos: ${(row.ratio * 100).toFixed(1)}%"></span>
+          </span>
+          <span class="aq-range-number">${formatRangeValue(row.max)}</span>
+        </span>
+      `;
+    }
+
+    function trendIconName(metricId) {
+      if (metricId === "temperature") return "cloud";
+      if (metricId === "rain") return "drop";
+      if (metricId === "wind") return "wind";
+      if (metricId === "humidity") return "humidity";
+      if (metricId === "visibility") return "eye";
+      if (metricId === "pm2_5" || metricId === "dust") return "gauge";
+      if (pollenKeys.includes(metricId)) return "sun";
+      return "gauge";
+    }
+
+    function trendIcon(metricId) {
+      const icon = trendIconName(metricId);
+      const paths = {
+        cloud: `
+          <path d="M7.5 17H17a4 4 0 0 0 .4-8 5.8 5.8 0 0 0-11.1 1.6A3.3 3.3 0 0 0 7.5 17Z"></path>
+          <path d="M17.6 9A4.2 4.2 0 1 0 13 4.9"></path>
+        `,
+        sun: `
+          <circle cx="12" cy="12" r="4.2"></circle>
+          <path d="M12 2.8v2.1M12 19.1v2.1M4.4 4.4l1.5 1.5M18.1 18.1l1.5 1.5M2.8 12h2.1M19.1 12h2.1M4.4 19.6l1.5-1.5M18.1 5.9l1.5-1.5"></path>
+        `,
+        wind: `
+          <path d="M3 9h11.5a3 3 0 1 0-2.8-4"></path>
+          <path d="M3 13h15.5a2.7 2.7 0 1 1-2.4 3.9"></path>
+          <path d="M3 17h8"></path>
+        `,
+        drop: `
+          <path d="M12 3.2C8.6 7.7 6.8 10.8 6.8 13.5a5.2 5.2 0 0 0 10.4 0C17.2 10.8 15.4 7.7 12 3.2Z"></path>
+        `,
+        humidity: `
+          <path d="M3 8.5c3.5 1.6 5.8-1.8 9.2-.2 2 .9 3.4.5 4.9-.5"></path>
+          <path d="M3 12.2c3.5 1.6 5.8-1.8 9.2-.2"></path>
+          <path d="M3 15.9c3.5 1.6 5.8-1.8 9.2-.2"></path>
+          <path d="M17.5 10.3c-2 2.7-3 4.5-3 6.1a3 3 0 0 0 6 0c0-1.6-1-3.4-3-6.1Z"></path>
+        `,
+        eye: `
+          <path d="M2.8 12s3.4-5.2 9.2-5.2 9.2 5.2 9.2 5.2-3.4 5.2-9.2 5.2S2.8 12 2.8 12Z"></path>
+          <circle cx="12" cy="12" r="2.1"></circle>
+        `,
+        gauge: `
+          <circle cx="12" cy="12" r="8.4"></circle>
+          <path d="M12 12l2.2-4.2"></path>
+          <path d="M7.2 8.8h.1M16.7 8.8h.1M5.8 13.4h.1M18.1 13.4h.1M8.3 17h.1M15.6 17h.1"></path>
+        `
+      };
+      return `<svg class="trend-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[icon]}</svg>`;
+    }
+
     function drawLegend() {
       legend.innerHTML = "";
       clearHiddenFocusedMetric();
+      const airRowsByKey = airHistoryRowsByKey();
       visibleMetricConfigs().forEach((metric) => {
         const button = document.createElement("button");
         button.type = "button";
-        button.className = "legend-item";
+        button.className = "trend-item";
         button.dataset.metric = metric.id;
+        button.setAttribute("aria-label", metric.label);
         button.setAttribute("aria-pressed", String(focusedMetric() === metric.id));
-        button.style.setProperty("--swatch", metric.color);
+        button.style.setProperty("--trend-color", metric.color);
+        button.style.setProperty("--aq-color", metric.color);
+        const rangeRow = trendRangeForMetric(metric, airRowsByKey);
+        if (rangeRow) {
+          button.style.setProperty("--recent-outline-start", `${rangeRow.recentOutline.start.toFixed(1)}%`);
+          button.style.setProperty("--recent-outline-width", `${rangeRow.recentOutline.width.toFixed(1)}%`);
+        }
         button.innerHTML = `
-          <span class="swatch" aria-hidden="true"></span>
-          <span>
-            <span class="legend-label">${metric.label}</span>
-            <span class="legend-value" data-value="${metric.id}"></span>
+          <span class="trend-top">
+            <span class="trend-label" title="${metric.label}">
+              ${trendIcon(metric.id)}
+              <span class="trend-label-text">${metric.label}</span>
+            </span>
+            <span class="trend-value" data-value="${metric.id}">${trendDisplayValue(metric)}</span>
           </span>
+          ${renderTrendRange(rangeRow)}
         `;
         button.addEventListener("click", () => {
           const wasActive = activeMetric === metric.id;
@@ -2752,7 +3119,7 @@
     }
 
     function legendMetricFromEvent(event) {
-      const item = event.target.closest?.(".legend-item");
+      const item = event.target.closest?.(".trend-item");
       return item?.dataset.metric || null;
     }
 
@@ -2762,13 +3129,15 @@
         el.classList.toggle("dimmed", Boolean(metric && !match));
         el.classList.toggle("highlighted", Boolean(match));
       });
+      document.querySelectorAll(".trend-item").forEach((item) => {
+        const match = metric && item.dataset.metric === metric;
+        item.classList.toggle("is-focused", Boolean(match));
+        item.setAttribute("aria-pressed", String(Boolean(match)));
+      });
     }
 
     function updateHighlight() {
       setHighlight(focusedMetric());
-      document.querySelectorAll(".legend-item").forEach((item) => {
-        item.setAttribute("aria-pressed", String(item.dataset.metric === focusedMetric()));
-      });
     }
 
     function formatHour(hour) {
@@ -2801,16 +3170,113 @@
       return `${relative[0].toUpperCase()}${relative.slice(1)} · ${formatChartDate(selectedDate)}`;
     }
 
+    function compactDateLabel() {
+      const selectedDate = selectedOpenMeteoDate();
+      if (!selectedDate) return "Today";
+      const relative = dayOffsetLabel(selectedDayOffset);
+      return relative[0].toUpperCase() + relative.slice(1);
+    }
+
+    function inferLocationName(lat, lon) {
+      const known = knownLocations.find((location) => (
+        Math.abs(lat - location.lat) <= location.tolerance
+        && Math.abs(lon - location.lon) <= location.tolerance
+      ));
+      if (known) return known.name;
+      return `${round(lat, 2)}, ${round(lon, 2)}`;
+    }
+
+    function activeLocationName() {
+      if (openMeteoLocation?.name) return openMeteoLocation.name;
+      const { lat, lon } = activeLocation();
+      return inferLocationName(lat, lon);
+    }
+
+    function severeWeatherRank(code) {
+      if (code === 96 || code === 99) return 4;
+      if (code >= 95) return 3;
+      return 0;
+    }
+
+    function downpourRank(row) {
+      const code = row.weatherCode;
+      const rain = Number.isFinite(row.rain) ? row.rain : 0;
+      if (code === 82 || code === 67 || rain >= 5) return 3;
+      if (code === 65 || code === 81 || rain >= 2) return 2;
+      return 0;
+    }
+
+    function highestRankedPoint(rows, ranker) {
+      return rows.reduce((best, row) => {
+        const rank = ranker(row);
+        if (rank <= 0) return best;
+        if (!best) return { row, rank };
+        if (rank > best.rank) return { row, rank };
+        if (rank === best.rank && row.h < best.row.h) return { row, rank };
+        return best;
+      }, null)?.row || null;
+    }
+
+    function severeWeatherPoint(rows) {
+      return highestRankedPoint(rows, (row) => severeWeatherRank(row.weatherCode));
+    }
+
+    function downpourPoint(rows) {
+      return rows.reduce((best, row) => {
+        const rank = downpourRank(row);
+        if (rank <= 0) return best;
+        const rain = Number.isFinite(row.rain) ? row.rain : 0;
+        if (!best) return { row, rank, rain };
+        if (rank > best.rank) return { row, rank, rain };
+        if (rank === best.rank && rain > best.rain) return { row, rank, rain };
+        if (rank === best.rank && rain === best.rain && row.h < best.row.h) return { row, rank, rain };
+        return best;
+      }, null)?.row || null;
+    }
+
+    function formatRainOutlier(rows) {
+      const downpour = downpourPoint(rows);
+      if (downpour) {
+        if (Number.isFinite(downpour.rain) && downpour.rain > 0) return `🌧️ ${downpour.rain.toFixed(1)} mm`;
+        return "🌧️";
+      }
+
+      const rainPeak = maxFinitePoint(rows, "rain");
+      if (rainPeak && rainPeak.rain > 0) return `Rain ${rainPeak.rain.toFixed(1)} mm`;
+      return "";
+    }
+
+    function airQualityOutliers(rows) {
+      const items = [];
+      const pm25Peak = maxFinitePoint(rows, "pm2_5");
+      const dustPeak = maxFinitePoint(rows, "dust");
+      const pollen = peakPollenForRows(rows);
+
+      if (pm25Peak && Number.isFinite(pm25Peak.pm2_5) && pm25Peak.pm2_5 >= 10) {
+        items.push(`PM2.5 ${formatConcentration(pm25Peak.pm2_5)}`);
+      }
+      if (dustPeak && Number.isFinite(dustPeak.dust) && dustPeak.dust >= 10) {
+        items.push(`Dust ${formatConcentration(dustPeak.dust)}`);
+      }
+      if (pollen && pollen.value >= 15) {
+        items.push(`${pollen.label || "Pollen"} ${formatPollen(pollen.value)}`);
+      }
+      return items;
+    }
+
+    function headerOutliers() {
+      const rows = dayRowsForVisibility();
+      const severe = severeWeatherPoint(rows);
+      const severeOutlier = severe ? "⛈️" : "";
+      return [severeOutlier, formatRainOutlier(rows), ...airQualityOutliers(rows)].filter(Boolean);
+    }
+
     function updateLegendValues() {
       const data = dataForHour(selectedHour);
       metricConfig.forEach((metric) => {
         const valueNode = legend.querySelector(`[data-value="${metric.id}"]`);
-        if (valueNode) valueNode.innerHTML = metric.value(data);
+        if (valueNode) valueNode.innerHTML = trendDisplayValue(metric, data);
       });
-    }
-
-    function formatHistoryCell(value) {
-      return Number.isFinite(value) ? String(round(value, 1)) : "";
     }
 
     function visibleAirHistoryColumns() {
@@ -2960,60 +3426,20 @@
       return Number.isFinite(value) ? String(round(value, 1)) : "";
     }
 
-    function drawAirComparisonList() {
-      if (!airComparisonList) return;
-      if (airQualityComparisonState === "loading") {
-        airComparisonList.innerHTML = `<p class="comparison-empty">Loading same-date air history...</p>`;
-        return;
-      }
-      if (airQualityComparisonState === "error" && !airQualityComparisons.length) {
-        airComparisonList.innerHTML = `<p class="comparison-empty">Could not load previous-year air history.</p>`;
-        return;
-      }
-      if (!airQualityComparisons.length) {
-        airComparisonList.innerHTML = `<p class="comparison-empty">Load Open-Meteo to compare this date with previous years.</p>`;
-        return;
-      }
-
-      const columns = visibleAirHistoryColumns();
-      const rows = aqHistoryRows(columns);
-      if (!rows.length) {
-        airComparisonList.innerHTML = `<p class="comparison-empty">No non-zero AQ history values for this date.</p>`;
-        return;
-      }
-
-      airComparisonList.innerHTML = rows.map((row) => `
-        <div class="aq-history-row" style="--aq-color: ${row.color}; --pos: ${(row.ratio * 100).toFixed(1)}%; --recent-outline-start: ${row.recentOutline.start.toFixed(1)}%; --recent-outline-width: ${row.recentOutline.width.toFixed(1)}%">
-          <span class="aq-history-label">${row.label}</span>
-          <span class="aq-history-value">${formatHistoryCell(row.current)}</span>
-          <span class="aq-history-unit">${row.unit}</span>
-          <span class="aq-history-range" aria-label="${row.label} range ${aqRangeLabel(row.min)} to ${aqRangeLabel(row.max)}, current ${formatHistoryCell(row.current)}${aqTrendLabel(row.trend)}">
-            <span class="aq-range-number">${aqRangeLabel(row.min)}</span>
-            <span class="aq-range-line">
-              ${row.recentOutline.width > 0 ? `<span class="aq-range-recent-outline"></span>` : ""}
-              ${row.points.map((point) => `<span class="aq-range-point" style="--point-pos: ${(point.ratio * 100).toFixed(1)}%; --point-opacity: ${point.opacity.toFixed(2)}"></span>`).join("")}
-              <span class="aq-range-marker" data-trend="${row.trend}"></span>
-            </span>
-            <span class="aq-range-number">${aqRangeLabel(row.max)}</span>
-          </span>
-        </div>
-      `).join("");
-    }
-
     function updateReadout() {
       const data = dataForHour(selectedHour);
       const weatherSummary = [`Actual ${data.actual}&deg;C`, `~${data.feels}&deg;C`];
       const airSummary = [];
       const strongestPollen = strongestPollenAt(data);
-      selectedTime.textContent = formatHour(selectedHour);
-      selectedDateLabel.textContent = chartDateLabel();
-      if ((Number.isFinite(data.pop) && data.pop > 0) || (Number.isFinite(data.rain) && data.rain > 0)) {
-        weatherSummary.push(`rain ${Number.isFinite(data.pop) && data.pop > 0 ? `${data.pop}%` : `${data.rain.toFixed(1)} mm`}`);
+      if (selectedTime) selectedTime.textContent = formatHour(selectedHour);
+      if (selectedDateLabel) selectedDateLabel.textContent = chartDateLabel();
+      if (Number.isFinite(data.rain) && data.rain > 0) {
+        weatherSummary.push(`rain ${data.rain.toFixed(1)} mm`);
       }
       if (Number.isFinite(data.pm2_5) && data.pm2_5 >= 10) airSummary.push(`PM2.5 ${formatConcentration(data.pm2_5)}`);
       if (Number.isFinite(data.dust) && data.dust > 0) airSummary.push(`dust ${formatConcentration(data.dust)}`);
       if (strongestPollen) airSummary.push(`${metricConfig.find((metric) => metric.id === strongestPollen.key)?.label || "𖡼"} ${formatPollen(strongestPollen.value)}`);
-      selectedSummary.innerHTML = `${weatherSummary.join(", ")}${airSummary.length ? ` · ${airSummary.join(", ")}` : ""}`;
+      if (selectedSummary) selectedSummary.innerHTML = `${weatherSummary.join(", ")}${airSummary.length ? ` · ${airSummary.join(", ")}` : ""}`;
       updateLegendValues();
       updateScrubber();
     }
@@ -3026,7 +3452,10 @@
 
     function drawEvents() {
       const uv = getUvEvents();
+      const dayRows = dayRowsForVisibility();
       const rainStart = forecast.find((d) => d.rain > 0);
+      const severe = severeWeatherPoint(dayRows);
+      const downpour = downpourPoint(dayRows);
       const gustPeak = forecast.reduce((best, d) => d.gust > best.gust ? d : best, forecast[0]);
       const visibilityLow = forecast.reduce((best, d) => d.visibility < best.visibility ? d : best, forecast[0]);
       const dustPeak = maxFinitePoint(forecast, "dust");
@@ -3052,6 +3481,22 @@
       if (uv.peak && uv.peak.uv > 0) addEvent({ hour: uv.peak.h, color: colors.uv, label: "UV peak", value: String(uv.peak.uv) });
       if (uv.below) addEvent({ hour: uv.below.h, color: colors.uv, label: "UV", value: "<3" });
       if (rainStart) addEvent({ hour: rainStart.h, color: colors.rain, label: "Rain begins", value: formatUnit(rainStart.rain, "mm") });
+      if (severe) {
+        addEvent({
+          hour: severe.h,
+          color: colors.rain,
+          label: severe.weatherCode === 96 || severe.weatherCode === 99 ? "Severe storms" : "Thunderstorms",
+          value: conditionDescription(severe.weatherCode)
+        });
+      }
+      if (downpour) {
+        addEvent({
+          hour: downpour.h,
+          color: colors.rain,
+          label: "Peak downpour",
+          value: Number.isFinite(downpour.rain) && downpour.rain > 0 ? formatUnit(downpour.rain, "mm") : conditionDescription(downpour.weatherCode)
+        });
+      }
       if (gustPeak && gustPeak.gust > 0) addEvent({ hour: gustPeak.h, color: colors.wind, label: "Peak gust", value: `${gustPeak.gust} ${windUnitHtml()}` });
       if (visibilityLow && visibilityLow.visibility > 0) addEvent({ hour: visibilityLow.h, color: colors.visibility, label: "Lowest visibility", value: `${visibilityLow.visibility} km` });
       if (dustPeak && dustPeak.dust > 0) addEvent({ hour: dustPeak.h, color: colors.dust, label: "Peak dust", value: formatConcentration(dustPeak.dust) });
@@ -3136,7 +3581,6 @@
       drawScrubber();
       drawLegend();
       drawEvents();
-      drawAirComparisonList();
       updateReadout();
       updateCurrentChip();
       updateHighlight();
@@ -3144,8 +3588,13 @@
     }
 
     function updateCurrentChip() {
+      currentCity.textContent = activeLocationName();
+      currentDateLabel.textContent = compactDateLabel();
       currentTemp.innerHTML = `${Math.round(currentWeather.actual)}&deg;C`;
-      currentDesc.innerHTML = `${conditionDescription(currentWeather.weatherCode)}, ~${Math.round(currentWeather.feels)}&deg;C`;
+      currentDesc.textContent = conditionDescription(currentWeather.weatherCode);
+      const outliers = headerOutliers();
+      outlierSummary.innerHTML = outliers.join(" · ");
+      outlierSummary.hidden = outliers.length === 0;
     }
 
     function setStatus(text) {
@@ -3302,7 +3751,6 @@
     function setAirComparisonLoading() {
       airQualityComparisonState = "loading";
       airQualityComparisons = [];
-      drawAirComparisonList();
     }
 
     function recomputeRangesWithComparisons() {
@@ -3395,7 +3843,7 @@
       openMeteoCurrent = payload.current || {};
       openMeteoCurrentTime = openMeteoCurrent.time || rows.find((row) => row.date === isoDateFromTime(new Date().toISOString()))?.time || rows[0].time;
       openMeteoReferenceDate = isoDateFromTime(openMeteoCurrentTime);
-      openMeteoLocation = { lat, lon };
+      openMeteoLocation = { lat, lon, name: inferLocationName(lat, lon) };
       openMeteoAirQualityNote = describeAirQualityAvailability(rows, airPayload, airError);
       sunEventsByDate = mapSunEvents(payload);
       selectedDayOffset = 0;
@@ -3536,6 +3984,11 @@
     prevDay.addEventListener("click", () => setSelectedDayOffset(selectedDayOffset - 1));
     todayDay.addEventListener("click", () => setSelectedDayOffset(0));
     nextDay.addEventListener("click", () => setSelectedDayOffset(selectedDayOffset + 1));
+    settingsButton.addEventListener("click", () => {
+      const willOpen = settingsPanel.hidden;
+      settingsPanel.hidden = !willOpen;
+      settingsButton.setAttribute("aria-expanded", String(willOpen));
+    });
     dataForm.addEventListener("submit", (event) => {
       event.preventDefault();
       loadOpenMeteo();
