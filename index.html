@@ -1,0 +1,3581 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weather Unified Chart MVP</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0e1014;
+      --panel: #171a20;
+      --panel-2: #20242b;
+      --grid: rgba(255, 255, 255, 0.13);
+      --grid-strong: rgba(255, 255, 255, 0.22);
+      --text: #f4f7fb;
+      --muted: #a6abb6;
+      --muted-2: #747b88;
+      --actual: #ffd15c;
+      --feels: #ff7a3d;
+      --rain: #35c8ff;
+      --wind: #10d2b8;
+      --humidity: #4d9dff;
+      --visibility: #eef1f7;
+      --uv: #b66cff;
+      --focus: #ffffff;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background:
+        radial-gradient(circle at 18% 8%, rgba(255, 194, 92, 0.15), transparent 28%),
+        radial-gradient(circle at 82% 0%, rgba(53, 200, 255, 0.13), transparent 30%),
+        linear-gradient(145deg, #11151b 0%, #0e1014 44%, #19191f 100%);
+      color: var(--text);
+    }
+
+    .page {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 28px clamp(14px, 3vw, 32px) 36px;
+    }
+
+    .weather-view {
+      display: grid;
+      gap: 18px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(30px, 5vw, 56px);
+      line-height: 1;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .summary {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: clamp(15px, 2vw, 18px);
+      overflow-wrap: anywhere;
+    }
+
+    .current-chip {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 12px;
+      min-width: 208px;
+      max-width: 100%;
+      padding: 12px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .weather-icon {
+      position: relative;
+      width: 42px;
+      height: 42px;
+    }
+
+    .weather-icon::before {
+      content: "";
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #ffd15c;
+      left: 2px;
+      top: 2px;
+      box-shadow: 0 0 24px rgba(255, 209, 92, 0.46);
+    }
+
+    .weather-icon::after {
+      content: "";
+      position: absolute;
+      width: 30px;
+      height: 16px;
+      left: 12px;
+      bottom: 8px;
+      border-radius: 18px;
+      background: #edf2f7;
+      box-shadow: -10px 1px 0 -2px #edf2f7, 7px -7px 0 -5px #edf2f7;
+    }
+
+    .current-chip b {
+      display: block;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .current-chip span {
+      color: var(--muted);
+      font-size: 13px;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .data-panel {
+      display: grid;
+      grid-template-columns: 140px 140px auto 1fr;
+      gap: 8px;
+      align-items: end;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .field span {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .field input {
+      width: 100%;
+      min-width: 0;
+      height: 38px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(8, 10, 14, 0.64);
+      color: var(--text);
+      font: inherit;
+      font-size: 14px;
+      outline: none;
+      padding: 0 10px;
+    }
+
+    .field input:focus {
+      border-color: rgba(255, 255, 255, 0.42);
+    }
+
+    .load-button {
+      height: 38px;
+      min-width: 94px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      cursor: pointer;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .load-button:disabled {
+      color: var(--muted-2);
+      cursor: progress;
+    }
+
+    .data-status {
+      min-height: 18px;
+      color: var(--muted-2);
+      font-size: 12px;
+      grid-column: 1 / -1;
+      overflow-wrap: anywhere;
+    }
+
+    .chart-panel {
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(32, 36, 43, 0.96), rgba(18, 20, 25, 0.98));
+      box-shadow: var(--shadow);
+    }
+
+    .chart-header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: start;
+      padding: 18px 20px 0;
+    }
+
+    .readout-time {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
+    .readout-time strong {
+      font-size: clamp(28px, 4.5vw, 48px);
+      line-height: 1;
+    }
+
+    .readout-time span {
+      color: var(--muted);
+      font-size: 15px;
+      white-space: nowrap;
+    }
+
+    .readout-time .readout-date {
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .normalization-note {
+      margin: 7px 0 0;
+      color: var(--muted-2);
+      font-size: 13px;
+    }
+
+    .chart-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-button {
+      display: inline-grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .icon-button:disabled {
+      color: var(--muted-2);
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
+
+    .icon-button svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .icon-button svg .filled {
+      fill: currentColor;
+      stroke: none;
+    }
+
+    .icon-button:focus-visible,
+    .legend-item:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      padding: 10px 12px 6px;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #weatherChart {
+      display: block;
+      width: 100%;
+      height: min(58vh, 560px);
+      min-height: 420px;
+    }
+
+    .axis-label {
+      fill: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .axis-label.temp-axis {
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .axis-label.temp-axis-period {
+      opacity: 0.3;
+    }
+
+    .axis-label.temp-axis-daily {
+      opacity: 1;
+    }
+
+    .axis-label.rain-axis {
+      fill: var(--rain);
+    }
+
+    .axis-label.wind-axis {
+      fill: var(--wind);
+    }
+
+    .axis-label.right-axis-unit {
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .compact-wind-unit text {
+      fill: var(--wind);
+      font-size: 7px;
+      font-weight: 850;
+    }
+
+    .compact-wind-unit line {
+      stroke: var(--wind);
+      stroke-width: 1.1;
+      stroke-linecap: round;
+    }
+
+    .axis-label.uv-axis-mark {
+      fill: var(--uv);
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    .axis-label.low {
+      dominant-baseline: ideographic;
+    }
+
+    .grid-line {
+      stroke: var(--grid);
+      stroke-width: 1;
+    }
+
+    .grid-line.strong {
+      stroke: var(--grid-strong);
+    }
+
+    .series {
+      transition: opacity 160ms ease, filter 160ms ease;
+    }
+
+    .series.dimmed {
+      opacity: 0.18;
+    }
+
+    .series.highlighted {
+      opacity: 1;
+      filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.23));
+    }
+
+    .line {
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .scrubber-line {
+      stroke: rgba(255, 255, 255, 0.07);
+      stroke-width: 1;
+      filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.46)) drop-shadow(0 0 2px rgba(0, 0, 0, 0.72));
+    }
+
+    .scrubber-dot {
+      fill: var(--dot, #ffffff);
+      stroke: rgba(9, 11, 16, 0.5);
+      stroke-width: 0.8;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      padding: 0 var(--legend-right, 20px) 18px var(--legend-left, 20px);
+    }
+
+    .legend-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+      padding: 9px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.055);
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .legend-item[aria-pressed="true"] {
+      border-color: rgba(255, 255, 255, 0.32);
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .swatch {
+      width: 10px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--swatch);
+      box-shadow: 0 0 14px color-mix(in srgb, var(--swatch) 45%, transparent);
+    }
+
+    .legend-label,
+    .legend-value {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .legend-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .legend-value {
+      margin-top: 2px;
+      font-size: 15px;
+      font-weight: 750;
+    }
+
+    .details {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 18px;
+    }
+
+    .info-panel {
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.055);
+      padding: 16px;
+    }
+
+    .info-panel h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+    }
+
+    .info-panel p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .event-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .comparison-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .aq-history-row {
+      display: grid;
+      grid-template-columns: minmax(56px, 0.8fr) minmax(42px, 0.45fr) minmax(54px, 0.55fr) minmax(164px, 1.8fr);
+      gap: 10px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .aq-history-label {
+      color: var(--text);
+      font-weight: 850;
+    }
+
+    .aq-history-unit {
+      color: var(--muted-2);
+      font-size: 10px;
+      font-weight: 750;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .aq-history-value {
+      color: var(--text);
+      font-weight: 850;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .aq-history-range {
+      display: grid;
+      grid-template-columns: 4.2ch minmax(88px, 1fr) 4.2ch;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .aq-range-number {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .aq-range-number:first-child {
+      text-align: right;
+    }
+
+    .aq-range-number:last-child {
+      text-align: left;
+    }
+
+    .aq-range-line {
+      position: relative;
+      height: 14px;
+      min-width: 88px;
+    }
+
+    .aq-range-line::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 6px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.055);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.24),
+        0 1px 4px rgba(0, 0, 0, 0.72),
+        inset 0 0 0 1px rgba(0, 0, 0, 0.28);
+    }
+
+    .aq-range-recent-outline {
+      position: absolute;
+      left: var(--recent-outline-start);
+      width: var(--recent-outline-width);
+      top: 5px;
+      height: 1px;
+      border-radius: 999px;
+      background: var(--aq-color);
+      opacity: 0.5;
+      box-shadow: 0 5px 0 var(--aq-color);
+      pointer-events: none;
+    }
+
+    .aq-range-point {
+      position: absolute;
+      left: var(--point-pos);
+      top: 5px;
+      width: 4px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--aq-color);
+      opacity: var(--point-opacity);
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    .aq-range-marker {
+      position: absolute;
+      left: var(--pos);
+      top: 0;
+      width: 8px;
+      height: 14px;
+      display: grid;
+      place-items: center;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    .aq-range-marker::before {
+      content: "";
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.96);
+    }
+
+    .aq-range-marker[data-trend="rising"]::before,
+    .aq-range-marker[data-trend="falling"]::before {
+      width: auto;
+      height: auto;
+      border-radius: 0;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.96);
+      font-size: 10px;
+      font-weight: 950;
+      line-height: 1;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.72);
+    }
+
+    .aq-range-marker[data-trend="rising"]::before {
+      content: ">";
+    }
+
+    .aq-range-marker[data-trend="falling"]::before {
+      content: "<";
+    }
+
+    .comparison-empty {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .event-row {
+      display: grid;
+      grid-template-columns: 50px auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .event-row span,
+    .event-row strong {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .event-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--dot);
+    }
+
+    .event-time {
+      color: var(--text);
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .event-row strong {
+      color: var(--text);
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .event-row strong:empty {
+      display: none;
+    }
+
+    @media (max-width: 860px) {
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .data-panel {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .data-panel .field:first-child,
+      .data-panel .data-status {
+        grid-column: 1 / -1;
+      }
+
+      .topbar,
+      .chart-header,
+      .details {
+        grid-template-columns: 1fr;
+      }
+
+      .current-chip {
+        width: 100%;
+      }
+
+      .legend {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .page {
+        padding-inline: 10px;
+      }
+
+      .chart-header {
+        padding-inline: 12px;
+      }
+
+      .legend {
+        grid-template-columns: 1fr;
+      }
+
+      .data-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .data-panel .field,
+      .data-panel .field:first-child,
+      .data-panel .data-status {
+        grid-column: auto;
+      }
+
+      .load-button {
+        width: 100%;
+      }
+
+      #weatherChart {
+        min-height: 390px;
+      }
+
+      .readout-time {
+        display: grid;
+        gap: 4px;
+      }
+
+      .readout-time span {
+        white-space: normal;
+      }
+
+      .aq-history-row {
+        grid-template-columns: minmax(52px, 0.8fr) minmax(34px, 0.4fr) minmax(42px, 0.45fr) minmax(104px, 1.5fr);
+        gap: 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="weather-view" aria-label="Unified weather chart prototype">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Prague forecast prototype</p>
+          <h1>Unified Weather</h1>
+          <p class="summary">One normalized chart area for weather, particulate matter, dust, and 𖡼 history.</p>
+        </div>
+        <div class="current-chip" aria-label="Current weather">
+          <span class="weather-icon" aria-hidden="true"></span>
+          <span>
+            <b id="currentTemp">23&deg;C</b>
+            <span id="currentDesc">Clouds building, rain risk after 18:00</span>
+          </span>
+        </div>
+      </header>
+
+      <form class="data-panel" id="dataForm">
+        <label class="field">
+          <span>Latitude</span>
+          <input id="latitude" inputmode="decimal" value="50.03">
+        </label>
+        <label class="field">
+          <span>Longitude</span>
+          <input id="longitude" inputmode="decimal" value="14.48">
+        </label>
+        <button class="load-button" id="loadWeather" type="submit">Load</button>
+        <div class="data-status" id="dataStatus">Sample data. Load Open-Meteo for live hourly weather and air-quality data.</div>
+      </form>
+
+      <section class="chart-panel">
+        <div class="chart-header">
+          <div>
+            <div class="readout-time">
+              <strong id="selectedTime">18:00</strong>
+              <span class="readout-date" id="selectedDate">Sample day</span>
+              <span id="selectedSummary">~28&deg;C, rain 25%</span>
+            </div>
+            <p class="normalization-note">Y-space uses returned historical ranges. Read values in the legend or scrubber, not from vertical position.</p>
+          </div>
+          <div class="chart-actions" aria-label="Chart controls">
+            <button class="icon-button" id="prevDay" type="button" aria-label="Previous day">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg>
+            </button>
+            <button class="icon-button" id="todayDay" type="button" aria-label="Today" title="Today">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4" y="5" width="16" height="15" rx="2"></rect>
+                <path d="M8 3v4M16 3v4M4 10h16"></path>
+                <circle class="filled" cx="12" cy="15" r="2"></circle>
+              </svg>
+            </button>
+            <button class="icon-button" id="nextDay" type="button" aria-label="Next day">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="chart-wrap" id="chartWrap">
+          <svg id="weatherChart" viewBox="0 0 1000 560" role="img" aria-label="Weather chart">
+            <desc id="chartDesc">A single shared chart area with normalized weather metrics and a shared time scrubber.</desc>
+            <defs>
+              <linearGradient id="humidityFill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#2aa36f" stop-opacity="0.34"></stop>
+                <stop offset="100%" stop-color="#4d9dff" stop-opacity="0.12"></stop>
+              </linearGradient>
+              <linearGradient id="rainFill" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stop-color="#35c8ff" stop-opacity="0.28"></stop>
+                <stop offset="100%" stop-color="#35c8ff" stop-opacity="0.02"></stop>
+              </linearGradient>
+              <filter id="visibilityBlur" x="-8%" y="-18%" width="116%" height="136%">
+                <feGaussianBlur stdDeviation="10"></feGaussianBlur>
+              </filter>
+            </defs>
+            <g id="plot"></g>
+          </svg>
+        </div>
+
+        <div class="legend" id="legend" aria-label="Metric legend"></div>
+      </section>
+
+      <section class="details" aria-label="Chart notes">
+        <article class="info-panel">
+          <h2>AQ history</h2>
+          <div class="comparison-list" id="airComparisonList">
+            <p class="comparison-empty">Load Open-Meteo to compare this date with previous years.</p>
+          </div>
+        </article>
+        <article class="info-panel">
+          <h2>Notable events</h2>
+          <div class="event-list" id="eventList"></div>
+        </article>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    const sampleForecast = [
+      { h: 0, actual: 23, feels: 24, pop: 0, rain: 0, wind: 7, gust: 17, humidity: 55, visibility: 29, uv: 0, weatherCode: 1 },
+      { h: 1, actual: 22, feels: 23, pop: 0, rain: 0, wind: 8, gust: 18, humidity: 60, visibility: 28, uv: 0, weatherCode: 1 },
+      { h: 2, actual: 21, feels: 22, pop: 0, rain: 0, wind: 7, gust: 16, humidity: 64, visibility: 28, uv: 0, weatherCode: 0 },
+      { h: 3, actual: 20, feels: 21, pop: 0, rain: 0, wind: 7, gust: 14, humidity: 67, visibility: 27, uv: 0, weatherCode: 0 },
+      { h: 4, actual: 20, feels: 21, pop: 0, rain: 0, wind: 6, gust: 14, humidity: 69, visibility: 27, uv: 0, weatherCode: 0 },
+      { h: 5, actual: 21, feels: 22, pop: 0, rain: 0, wind: 6, gust: 14, humidity: 69, visibility: 28, uv: 0, weatherCode: 1 },
+      { h: 6, actual: 23, feels: 24, pop: 0, rain: 0, wind: 10, gust: 17, humidity: 68, visibility: 29, uv: 0, weatherCode: 1 },
+      { h: 7, actual: 26, feels: 27, pop: 5, rain: 0, wind: 10, gust: 17, humidity: 61, visibility: 30, uv: 1, weatherCode: 1 },
+      { h: 8, actual: 28, feels: 29, pop: 0, rain: 0, wind: 12, gust: 18, humidity: 57, visibility: 30, uv: 3, weatherCode: 0 },
+      { h: 9, actual: 29, feels: 30, pop: 0, rain: 0, wind: 14, gust: 20, humidity: 54, visibility: 31, uv: 5, weatherCode: 0 },
+      { h: 10, actual: 30, feels: 31, pop: 0, rain: 0, wind: 15, gust: 22, humidity: 51, visibility: 26, uv: 6, weatherCode: 1 },
+      { h: 11, actual: 31, feels: 32, pop: 5, rain: 0, wind: 15, gust: 21, humidity: 50, visibility: 27, uv: 7, weatherCode: 1 },
+      { h: 12, actual: 31, feels: 33, pop: 5, rain: 0, wind: 15, gust: 23, humidity: 48, visibility: 15, uv: 8, weatherCode: 2 },
+      { h: 13, actual: 32, feels: 33, pop: 10, rain: 0, wind: 16, gust: 31, humidity: 48, visibility: 17, uv: 7, weatherCode: 2 },
+      { h: 14, actual: 32, feels: 32, pop: 10, rain: 0, wind: 15, gust: 31, humidity: 50, visibility: 20, uv: 6, weatherCode: 3 },
+      { h: 15, actual: 31, feels: 31, pop: 10, rain: 0, wind: 15, gust: 32, humidity: 56, visibility: 24, uv: 5, weatherCode: 3 },
+      { h: 16, actual: 30, feels: 30, pop: 15, rain: 0, wind: 15, gust: 34, humidity: 58, visibility: 24, uv: 3, weatherCode: 3 },
+      { h: 17, actual: 29, feels: 29, pop: 15, rain: 0, wind: 16, gust: 36, humidity: 61, visibility: 23, uv: 2, weatherCode: 51 },
+      { h: 18, actual: 28, feels: 28, pop: 25, rain: 1.1, wind: 16, gust: 36, humidity: 65, visibility: 23, uv: 1, weatherCode: 61 },
+      { h: 19, actual: 27, feels: 27, pop: 20, rain: 0.9, wind: 16, gust: 36, humidity: 70, visibility: 26, uv: 0, weatherCode: 61 },
+      { h: 20, actual: 26, feels: 26, pop: 20, rain: 0, wind: 12, gust: 28, humidity: 75, visibility: 22, uv: 0, weatherCode: 3 },
+      { h: 21, actual: 24, feels: 24, pop: 20, rain: 0, wind: 10, gust: 26, humidity: 79, visibility: 24, uv: 0, weatherCode: 3 },
+      { h: 22, actual: 23, feels: 23, pop: 0, rain: 0, wind: 9, gust: 24, humidity: 81, visibility: 23, uv: 0, weatherCode: 3 },
+      { h: 23, actual: 22, feels: 22, pop: 20, rain: 0, wind: 9, gust: 20, humidity: 83, visibility: 25, uv: 0, weatherCode: 3 },
+      { h: 24, actual: 21, feels: 21, pop: 20, rain: 0, wind: 8, gust: 18, humidity: 85, visibility: 24, uv: 0, weatherCode: 3 }
+    ];
+
+    sampleForecast.forEach((row) => {
+      const hour = row.h === 24 ? 0 : row.h;
+      const daytime = Math.max(0, Math.sin(((hour - 5) / 17) * Math.PI));
+      const evening = Math.max(0, Math.sin(((hour - 15) / 10) * Math.PI));
+      const rainWashout = row.rain > 0 ? 0.58 : 1;
+      row.isDay = row.h >= 6 && row.h < 21;
+      row.pm2_5 = Number((7 + row.humidity * 0.05 + evening * 5).toFixed(1));
+      row.dust = Number((1.2 + row.wind * 0.08 + Math.max(0, 30 - row.visibility) * 0.18).toFixed(1));
+      row.alder_pollen = Number((daytime * 0.4 * rainWashout).toFixed(1));
+      row.birch_pollen = Number((daytime * 1.1 * rainWashout).toFixed(1));
+      row.grass_pollen = Number((18 + daytime * 42 * rainWashout).toFixed(1));
+      row.mugwort_pollen = Number((daytime * 1.8 * rainWashout).toFixed(1));
+      row.olive_pollen = Number((daytime * 0.2 * rainWashout).toFixed(1));
+    });
+
+    const sampleSunEvents = {
+      sunrise: "2026-07-05T04:58",
+      sunset: "2026-07-05T21:14",
+      sunriseHour: 4 + 58 / 60,
+      sunsetHour: 21 + 14 / 60,
+      solarNoonHour: (4 + 58 / 60 + 21 + 14 / 60) / 2
+    };
+
+    const airQualityKeys = ["pm2_5", "alder_pollen", "birch_pollen", "grass_pollen", "mugwort_pollen", "olive_pollen", "dust"];
+    const pollenKeys = ["alder_pollen", "birch_pollen", "grass_pollen", "mugwort_pollen", "olive_pollen"];
+    const comparisonYearsBack = 5;
+
+    const fallbackRanges = {
+      actual: { min: -8, max: 42 },
+      feels: { min: -12, max: 48 },
+      pop: { min: 0, max: 100 },
+      rain: { min: 0, max: 15 },
+      wind: { min: 0, max: 45 },
+      gust: { min: 0, max: 80 },
+      humidity: { min: 0, max: 100 },
+      visibility: { min: 0, max: 50 },
+      uv: { min: 0, max: 11 },
+      pm2_5: { min: 0, max: 60 },
+      alder_pollen: { min: 0, max: 80 },
+      birch_pollen: { min: 0, max: 120 },
+      grass_pollen: { min: 0, max: 120 },
+      mugwort_pollen: { min: 0, max: 80 },
+      olive_pollen: { min: 0, max: 80 },
+      dust: { min: 0, max: 60 }
+    };
+
+    const colors = {
+      actual: "#ffd15c",
+      feels: "#ff7a3d",
+      rain: "#35c8ff",
+      wind: "#10d2b8",
+      humidity: "#4d9dff",
+      visibility: "#eef1f7",
+      uv: "#b66cff",
+      pm2_5: "#2ca7f8",
+      alder_pollen: "#6456e8",
+      birch_pollen: "#09d46b",
+      grass_pollen: "#ff7042",
+      mugwort_pollen: "#6d89ca",
+      olive_pollen: "#c65cff",
+      dust: "#35d0bd"
+    };
+
+    const metricKeys = ["actual", "feels", "pop", "rain", "wind", "gust", "humidity", "visibility", "uv", ...airQualityKeys];
+    const scrubberKeys = ["actual", "feels", "humidity", "gust", "pop", "pm2_5", "grass_pollen", "dust"];
+    const invertedMetrics = new Set(["humidity", "pop", "rain"]);
+    const windContourEnabled = true;
+    const windContourStrength = 0.28;
+    const windContourSpacing = 8;
+    const windContourDrift = 0.75;
+    const windContourShadow = "#04584f";
+    const visibilityMode = "mask";
+    const visibilityIntensity = 0.8;
+    const layout = { left: 58, right: 112, top: 70, bottom: 46, width: 1000, height: 560 };
+
+    const plot = document.getElementById("plot");
+    const legend = document.getElementById("legend");
+    const selectedTime = document.getElementById("selectedTime");
+    const selectedDateLabel = document.getElementById("selectedDate");
+    const selectedSummary = document.getElementById("selectedSummary");
+    const eventList = document.getElementById("eventList");
+    const airComparisonList = document.getElementById("airComparisonList");
+    const chartWrap = document.getElementById("chartWrap");
+    const svg = document.getElementById("weatherChart");
+    const prevDay = document.getElementById("prevDay");
+    const todayDay = document.getElementById("todayDay");
+    const nextDay = document.getElementById("nextDay");
+    const currentTemp = document.getElementById("currentTemp");
+    const currentDesc = document.getElementById("currentDesc");
+    const dataForm = document.getElementById("dataForm");
+    const dataStatus = document.getElementById("dataStatus");
+    const latitudeInput = document.getElementById("latitude");
+    const longitudeInput = document.getElementById("longitude");
+    const loadWeather = document.getElementById("loadWeather");
+
+    let forecast = sampleForecast.map((d) => ({ ...d }));
+    let ranges = computeRanges(sampleForecast);
+    let chartWidth = layout.width - layout.left - layout.right;
+    let chartHeight = layout.height - layout.top - layout.bottom;
+    let selectedHour = 18;
+    let selectedDayOffset = 0;
+    let openMeteoRows = [];
+    let openMeteoCurrent = {};
+    let openMeteoCurrentTime = "";
+    let openMeteoReferenceDate = "";
+    let openMeteoLocation = null;
+    let openMeteoAirQualityNote = "Air quality not loaded.";
+    let sunEventsByDate = new Map();
+    let airQualityComparisons = [];
+    let airQualityComparisonState = "idle";
+    let airQualityComparisonRequestId = 0;
+    let activeMetric = null;
+    let activeSeriesLayer = null;
+    let seriesRootLayer = null;
+    let resizeTimer = null;
+    let hoverMetric = null;
+    let suppressedHoverMetric = null;
+    let scrubberVisible = false;
+    let currentWeather = {
+      actual: 23,
+      feels: 23,
+      weatherCode: 2,
+      description: "sample conditions"
+    };
+
+    function configureLayout() {
+      const bounds = svg.getBoundingClientRect();
+      layout.width = Math.max(320, Math.round(bounds.width || 1000));
+      layout.height = Math.max(320, Math.round(bounds.height || 560));
+
+      const compact = layout.width < 520;
+      layout.left = compact ? 34 : 58;
+      layout.right = compact ? 78 : 112;
+      layout.top = compact ? 58 : 70;
+      layout.bottom = compact ? 34 : 46;
+
+      chartWidth = layout.width - layout.left - layout.right;
+      chartHeight = layout.height - layout.top - layout.bottom;
+      svg.setAttribute("viewBox", `0 0 ${layout.width} ${layout.height}`);
+
+      const wrapStyle = window.getComputedStyle(chartWrap);
+      const wrapLeft = Number.parseFloat(wrapStyle.paddingLeft) || 0;
+      const wrapRight = Number.parseFloat(wrapStyle.paddingRight) || 0;
+      legend.style.setProperty("--legend-left", `${wrapLeft + layout.left}px`);
+      legend.style.setProperty("--legend-right", `${wrapRight + layout.right}px`);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function round(value, places = 0) {
+      if (!Number.isFinite(value)) return 0;
+      const factor = 10 ** places;
+      return Math.round(value * factor) / factor;
+    }
+
+    function hexToRgb(hex) {
+      const clean = hex.replace("#", "");
+      return {
+        r: parseInt(clean.slice(0, 2), 16),
+        g: parseInt(clean.slice(2, 4), 16),
+        b: parseInt(clean.slice(4, 6), 16)
+      };
+    }
+
+    function rgbToHex({ r, g, b }) {
+      return `#${[r, g, b].map((channel) => clamp(Math.round(channel), 0, 255).toString(16).padStart(2, "0")).join("")}`;
+    }
+
+    function mixColor(a, b, ratio) {
+      const from = hexToRgb(a);
+      const to = hexToRgb(b);
+      return rgbToHex({
+        r: from.r + (to.r - from.r) * ratio,
+        g: from.g + (to.g - from.g) * ratio,
+        b: from.b + (to.b - from.b) * ratio
+      });
+    }
+
+    function tempColor(value) {
+      const stops = [
+        { value: -10, color: "#58a6ff" },
+        { value: 0, color: "#38bdf8" },
+        { value: 8, color: "#2dd4bf" },
+        { value: 16, color: "#8bcf51" },
+        { value: 22, color: "#ffd84d" },
+        { value: 28, color: "#ff9f2f" },
+        { value: 34, color: "#ff6536" },
+        { value: 40, color: "#d84d75" }
+      ];
+      if (value <= stops[0].value) return stops[0].color;
+      if (value >= stops[stops.length - 1].value) return stops[stops.length - 1].color;
+      for (let i = 1; i < stops.length; i += 1) {
+        const prev = stops[i - 1];
+        const next = stops[i];
+        if (value <= next.value) {
+          const ratio = (value - prev.value) / (next.value - prev.value);
+          return mixColor(prev.color, next.color, ratio);
+        }
+      }
+      return stops[stops.length - 1].color;
+    }
+
+    function smoothStep(edge0, edge1, value) {
+      const ratio = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+      return ratio * ratio * (3 - 2 * ratio);
+    }
+
+    function humidityFillColor(value) {
+      return mixColor("#2aa36f", "#4d9dff", clamp(value / 100, 0, 1));
+    }
+
+    function humidityOpacityMultiplier(value) {
+      const humidity = clamp(value, 0, 100);
+      return 0.2
+        + 0.2 * smoothStep(25, 35, humidity)
+        + 0.4 * smoothStep(50, 60, humidity)
+        + 0.2 * smoothStep(75, 100, humidity);
+    }
+
+    function computeRanges(rows) {
+      const nextRanges = {};
+      metricKeys.forEach((key) => {
+        const values = rows.map((d) => d[key]).filter(Number.isFinite);
+        if (!values.length) {
+          nextRanges[key] = fallbackRanges[key];
+          return;
+        }
+        let min = Math.min(...values);
+        let max = Math.max(...values);
+        if (min === max) {
+          nextRanges[key] = fallbackRanges[key];
+          return;
+        }
+        const pad = (max - min) * 0.04;
+        nextRanges[key] = { min: min - pad, max: max + pad, rawMin: min, rawMax: max };
+      });
+
+      const windValues = rows.flatMap((d) => {
+        const wind = Number.isFinite(d.wind) ? d.wind : null;
+        const gust = Number.isFinite(d.gust) ? d.gust : wind;
+        if (wind === null) return [];
+        return [wind, Math.max(gust ?? wind, wind)];
+      });
+      if (windValues.length) {
+        const rawMin = Math.min(...windValues);
+        const rawMax = Math.max(...windValues);
+        const pad = rawMin === rawMax ? Math.max(2, rawMax * 0.2) : (rawMax - rawMin) * 0.04;
+        const sharedWindRange = {
+          min: Math.max(0, rawMin - pad),
+          max: rawMax + pad,
+          rawMin,
+          rawMax
+        };
+        nextRanges.wind = sharedWindRange;
+        nextRanges.gust = sharedWindRange;
+      }
+      return nextRanges;
+    }
+
+    function rangeFor(key) {
+      const range = ranges[key] || fallbackRanges[key];
+      return Number.isFinite(range.min) && Number.isFinite(range.max) && range.max > range.min ? range : fallbackRanges[key];
+    }
+
+    function normalize(key, value) {
+      const range = rangeFor(key);
+      const normalized = clamp((value - range.min) / (range.max - range.min), 0, 1);
+      return invertedMetrics.has(key) ? 1 - normalized : normalized;
+    }
+
+    function x(hour) {
+      return layout.left + (hour / 24) * chartWidth;
+    }
+
+    function yNorm(normalized) {
+      return layout.top + (1 - normalized) * chartHeight;
+    }
+
+    function y(key, value) {
+      return yNorm(normalize(key, value));
+    }
+
+    function isAirQualityMetric(key) {
+      return airQualityKeys.includes(key);
+    }
+
+    function airQualityBandShare() {
+      return isAirQualityMetric(focusedMetric()) ? 0.75 : 0.25;
+    }
+
+    function airQualityBandTop() {
+      return layout.top + chartHeight * (1 - airQualityBandShare());
+    }
+
+    function airQualityBandHeight() {
+      return chartHeight * airQualityBandShare();
+    }
+
+    function airQualityY(key, value) {
+      return airQualityBandTop() + (1 - normalize(key, value)) * airQualityBandHeight();
+    }
+
+    function metricY(key, value) {
+      return isAirQualityMetric(key) ? airQualityY(key, value) : y(key, value);
+    }
+
+    function coords(dataPoint, key) {
+      return {
+        x: x(dataPoint.h),
+        y: y(key, dataPoint[key])
+      };
+    }
+
+    function point(dataPoint, key) {
+      const p = coords(dataPoint, key);
+      return `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+    }
+
+    function curveControls(points, key, index) {
+      const p0 = coords(points[Math.max(0, index - 2)], key);
+      const p1 = coords(points[index - 1], key);
+      const p2 = coords(points[index], key);
+      const p3 = coords(points[Math.min(points.length - 1, index + 1)], key);
+      const c1 = {
+        x: p1.x + (p2.x - p0.x) / 6,
+        y: p1.y + (p2.y - p0.y) / 6
+      };
+      const c2 = {
+        x: p2.x - (p3.x - p1.x) / 6,
+        y: p2.y - (p3.y - p1.y) / 6
+      };
+      return { c1, c2, p1, p2 };
+    }
+
+    function curveSegment(points, key, index) {
+      const { c1, c2, p2 } = curveControls(points, key, index);
+      return `C ${c1.x.toFixed(2)},${c1.y.toFixed(2)} ${c2.x.toFixed(2)},${c2.y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
+    }
+
+    function reverseCurveSegment(points, key, index) {
+      const { c1, c2, p1 } = curveControls(points, key, index);
+      return `C ${c2.x.toFixed(2)},${c2.y.toFixed(2)} ${c1.x.toFixed(2)},${c1.y.toFixed(2)} ${p1.x.toFixed(2)},${p1.y.toFixed(2)}`;
+    }
+
+    function linearPathFrom(points, key) {
+      return points.map((d, index) => `${index === 0 ? "M" : "L"} ${point(d, key)}`).join(" ");
+    }
+
+    function linearPathFromY(points, key, yAccessor) {
+      return points.map((d, index) => {
+        const xx = x(d.h).toFixed(2);
+        const yy = yAccessor(key, d[key]).toFixed(2);
+        return `${index === 0 ? "M" : "L"} ${xx},${yy}`;
+      }).join(" ");
+    }
+
+    function pathFrom(points, key) {
+      if (points.length < 2) return points.length ? `M ${point(points[0], key)}` : "";
+      const start = `M ${point(points[0], key)}`;
+      const curves = [];
+      for (let i = 1; i < points.length; i += 1) {
+        curves.push(curveSegment(points, key, i));
+      }
+      return `${start} ${curves.join(" ")}`;
+    }
+
+    function setTempGradient(id, points, key) {
+      const defs = svg.querySelector("defs");
+      const existing = document.getElementById(id);
+      if (existing) existing.remove();
+      const gradient = makeEl("linearGradient", {
+        id,
+        gradientUnits: "userSpaceOnUse",
+        x1: layout.left,
+        y1: 0,
+        x2: layout.left + chartWidth,
+        y2: 0
+      });
+      points.forEach((d) => {
+        gradient.appendChild(makeEl("stop", {
+          offset: `${clamp((d.h / 24) * 100, 0, 100).toFixed(2)}%`,
+          "stop-color": tempColor(d[key])
+        }));
+      });
+      defs.appendChild(gradient);
+    }
+
+    function drawTempGradientLine(group, points, key, width, opacity = 1) {
+      const gradientId = `tempGradient-${key}`;
+      setTempGradient(gradientId, points, key);
+      group.appendChild(makeEl("path", {
+        d: pathFrom(points, key),
+        class: "line",
+        stroke: `url(#${gradientId})`,
+        "stroke-width": width,
+        opacity
+      }));
+    }
+
+    function areaToBottom(points, key) {
+      const first = points[0];
+      const last = points[points.length - 1];
+      const line = pathFrom(points, key);
+      return `${line} L ${x(last.h).toFixed(2)},${layout.top + chartHeight} L ${x(first.h).toFixed(2)},${layout.top + chartHeight} Z`;
+    }
+
+    function areaBetween(points, highKey, lowKey) {
+      const high = pathFrom(points, highKey);
+      const low = pathFrom(points.slice().reverse(), lowKey).replace(/^M/, "L");
+      return `${high} ${low} Z`;
+    }
+
+    function segmentAreaBetween(points, index, highKey, lowKey) {
+      const prev = points[index - 1];
+      const next = points[index];
+      return `M ${point(prev, highKey)} ${curveSegment(points, highKey, index)} L ${point(next, lowKey)} ${reverseCurveSegment(points, lowKey, index)} Z`;
+    }
+
+    function coordsByY(points, yKey, index) {
+      return {
+        x: x(points[index].h),
+        y: points[index][yKey]
+      };
+    }
+
+    function pointByY(dataPoint, yKey) {
+      return `${x(dataPoint.h).toFixed(2)},${dataPoint[yKey].toFixed(2)}`;
+    }
+
+    function curveControlsByY(points, yKey, index) {
+      const p0 = coordsByY(points, yKey, Math.max(0, index - 2));
+      const p1 = coordsByY(points, yKey, index - 1);
+      const p2 = coordsByY(points, yKey, index);
+      const p3 = coordsByY(points, yKey, Math.min(points.length - 1, index + 1));
+      const minY = Math.min(p1.y, p2.y);
+      const maxY = Math.max(p1.y, p2.y);
+      const c1 = {
+        x: p1.x + (p2.x - p0.x) / 6,
+        y: clamp(p1.y + (p2.y - p0.y) / 6, minY, maxY)
+      };
+      const c2 = {
+        x: p2.x - (p3.x - p1.x) / 6,
+        y: clamp(p2.y - (p3.y - p1.y) / 6, minY, maxY)
+      };
+      return { c1, c2, p2 };
+    }
+
+    function curveSegmentByY(points, yKey, index) {
+      const { c1, c2, p2 } = curveControlsByY(points, yKey, index);
+      return `C ${c1.x.toFixed(2)},${c1.y.toFixed(2)} ${c2.x.toFixed(2)},${c2.y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
+    }
+
+    function pathFromY(points, yKey) {
+      if (points.length < 2) return points.length ? `M ${pointByY(points[0], yKey)}` : "";
+      const curves = [];
+      for (let i = 1; i < points.length; i += 1) {
+        curves.push(curveSegmentByY(points, yKey, i));
+      }
+      return `M ${pointByY(points[0], yKey)} ${curves.join(" ")}`;
+    }
+
+    function areaToTop(points, key) {
+      const first = points[0];
+      const last = points[points.length - 1];
+      const line = pathFrom(points, key);
+      return `${line} L ${x(last.h).toFixed(2)},${layout.top} L ${x(first.h).toFixed(2)},${layout.top} Z`;
+    }
+
+    function makeEl(name, attrs = {}) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+      Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+      return el;
+    }
+
+    function isCompactLayout() {
+      return layout.width < 520;
+    }
+
+    function dailyStats() {
+      const day = forecast.filter((d) => d.h < 24);
+      const highFeels = day.reduce((best, d) => d.feels > best.feels ? d : best, day[0]);
+      const lowFeels = day.reduce((best, d) => d.feels < best.feels ? d : best, day[0]);
+      const maxRain = day.reduce((best, d) => d.rain > best.rain ? d : best, day[0]);
+      const maxWind = day.reduce((best, d) => {
+        const bestValue = Math.max(best.wind, best.gust ?? best.wind);
+        const value = Math.max(d.wind, d.gust ?? d.wind);
+        return value > bestValue ? d : best;
+      }, day[0]);
+      const maxWindValue = Math.max(maxWind.wind, maxWind.gust ?? maxWind.wind);
+      const avgWind = day.reduce((sum, d) => sum + d.wind, 0) / day.length;
+      const periodRange = rangeFor("feels");
+      const periodHighFeels = periodRange.rawMax ?? periodRange.max;
+      const periodLowFeels = periodRange.rawMin ?? periodRange.min;
+      return { day, highFeels, lowFeels, maxRain, maxWind, maxWindValue, avgWind, periodHighFeels, periodLowFeels };
+    }
+
+    function appendText(parent, text, attrs = {}) {
+      const node = makeEl("text", attrs);
+      node.textContent = text;
+      parent.appendChild(node);
+      return node;
+    }
+
+    function appendTspan(parent, text, attrs = {}) {
+      const node = makeEl("tspan", attrs);
+      node.textContent = text;
+      parent.appendChild(node);
+      return node;
+    }
+
+    function rightAxisY(rawY, compactBottomPad = 18) {
+      return clamp(rawY, layout.top + 12, layout.top + chartHeight - (isCompactLayout() ? compactBottomPad : 4));
+    }
+
+    function drawRightValueUnitLabel(parent, valueText, unitText, xPos, yPos, className) {
+      const label = makeEl("text", {
+        x: xPos,
+        y: yPos,
+        class: className,
+        "text-anchor": "start"
+      });
+      if (isCompactLayout()) {
+        appendTspan(label, valueText, { x: xPos, dy: 0 });
+        appendTspan(label, unitText, { x: xPos, dy: 11, class: "right-axis-unit" });
+      } else {
+        label.textContent = `${valueText} ${unitText}`;
+      }
+      parent.appendChild(label);
+      return label;
+    }
+
+    function windUnitHtml() {
+      return "km/h";
+    }
+
+    function drawCompactWindUnit(parent, xPos, yPos, valueText = "", placement = "side") {
+      const unitOffset = placement === "below"
+        ? Math.max(8, valueText.length * 3.8 + (valueText.startsWith("~") ? 1 : 0))
+        : Math.max(30, valueText.length * 8 + 14);
+      const unitY = placement === "below" ? yPos + 19 : yPos - 3.2;
+      const unit = makeEl("g", {
+        class: "compact-wind-unit",
+        "data-placement": placement,
+        transform: `translate(${(xPos + unitOffset).toFixed(2)} ${unitY.toFixed(2)})`,
+        "aria-hidden": "true"
+      });
+      appendText(unit, "km", { x: 0, y: -6.8, "text-anchor": "middle" });
+      unit.appendChild(makeEl("line", { x1: -5.8, y1: 0.9, x2: 5.8, y2: 0.9 }));
+      appendText(unit, "h", { x: 0, y: 9.3, "text-anchor": "middle" });
+      parent.appendChild(unit);
+    }
+
+    function drawWindAxisLabel(parent, valueText, xPos, yPos) {
+      appendText(parent, valueText, {
+        x: xPos,
+        y: yPos,
+        class: "axis-label wind-axis",
+        "text-anchor": "start"
+      });
+      drawCompactWindUnit(parent, xPos, yPos, valueText, isCompactLayout() ? "below" : "side");
+    }
+
+    function drawGrid() {
+      const group = makeEl("g", { "aria-hidden": "true" });
+      [0, 0.25, 0.5, 0.75, 1].forEach((n) => {
+        const yy = yNorm(n);
+        group.appendChild(makeEl("line", {
+          x1: layout.left,
+          y1: yy,
+          x2: layout.width - layout.right,
+          y2: yy,
+          class: n === 0 || n === 1 ? "grid-line strong" : "grid-line"
+        }));
+      });
+      [0, 6, 12, 18, 24].forEach((hour) => {
+        const xx = x(hour);
+        group.appendChild(makeEl("line", {
+          x1: xx,
+          y1: layout.top,
+          x2: xx,
+          y2: layout.top + chartHeight,
+          class: "grid-line"
+        }));
+        const label = makeEl("text", {
+          x: xx,
+          y: layout.top + chartHeight + 30,
+          class: "axis-label",
+          "text-anchor": hour === 0 ? "start" : hour === 24 ? "end" : "middle"
+        });
+        label.textContent = String(hour).padStart(2, "0");
+        group.appendChild(label);
+      });
+      const stats = dailyStats();
+      const periodHigh = makeEl("text", {
+        x: 14,
+        y: layout.top + 8,
+        class: "axis-label temp-axis temp-axis-period",
+        style: `fill: ${tempColor(stats.periodHighFeels)}`,
+        "text-anchor": "start"
+      });
+      periodHigh.textContent = `${Math.round(stats.periodHighFeels)}°`;
+      const periodLow = makeEl("text", {
+        x: 14,
+        y: layout.top + chartHeight,
+        class: "axis-label low temp-axis temp-axis-period",
+        style: `fill: ${tempColor(stats.periodLowFeels)}`,
+        "text-anchor": "start"
+      });
+      periodLow.textContent = `${Math.round(stats.periodLowFeels)}°`;
+      const dailyHigh = makeEl("text", {
+        x: 14,
+        y: clamp(y("feels", stats.highFeels.feels) + 4, layout.top + 14, layout.top + chartHeight - 10),
+        class: "axis-label temp-axis temp-axis-daily",
+        style: `fill: ${tempColor(stats.highFeels.feels)}`,
+        "text-anchor": "start"
+      });
+      dailyHigh.textContent = `${Math.round(stats.highFeels.feels)}°`;
+      const dailyLow = makeEl("text", {
+        x: 14,
+        y: clamp(y("feels", stats.lowFeels.feels) + 4, layout.top + 14, layout.top + chartHeight - 10),
+        class: "axis-label temp-axis temp-axis-daily",
+        style: `fill: ${tempColor(stats.lowFeels.feels)}`,
+        "text-anchor": "start"
+      });
+      dailyLow.textContent = `${Math.round(stats.lowFeels.feels)}°`;
+      const rightX = layout.width - layout.right + 10;
+      group.appendChild(periodHigh);
+      group.appendChild(periodLow);
+      group.appendChild(dailyHigh);
+      group.appendChild(dailyLow);
+
+      if (stats.maxRain.rain > 0) {
+        drawRightValueUnitLabel(
+          group,
+          stats.maxRain.rain.toFixed(1),
+          "mm",
+          rightX,
+          rightAxisY(y("rain", stats.maxRain.rain) + 4, 22),
+          "axis-label rain-axis"
+        );
+      }
+
+      drawWindAxisLabel(group, `~${Math.round(stats.avgWind)}`, rightX, rightAxisY(y("wind", stats.avgWind) + 4, 40));
+      if (stats.maxWindValue > stats.avgWind * 3) {
+        drawWindAxisLabel(group, String(Math.round(stats.maxWindValue)), rightX, rightAxisY(y("gust", stats.maxWindValue) + 4, 40));
+      }
+      plot.appendChild(group);
+    }
+
+    function seriesGroup(name) {
+      const group = makeEl("g", { class: "series", "data-metric": name });
+      (activeSeriesLayer || seriesRootLayer || plot).appendChild(group);
+      return group;
+    }
+
+    function conditionType(code) {
+      if (code === 0) return "clear";
+      if (code === 1 || code === 2) return "partly";
+      if (code === 3) return "cloud";
+      if (code === 45 || code === 48) return "fog";
+      if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return "rain";
+      if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "snow";
+      if (code >= 95) return "storm";
+      return "cloud";
+    }
+
+    function conditionDescription(code) {
+      const labels = {
+        0: "clear sky",
+        1: "mainly clear",
+        2: "partly cloudy",
+        3: "overcast",
+        45: "fog",
+        48: "depositing rime fog",
+        51: "light drizzle",
+        53: "drizzle",
+        55: "dense drizzle",
+        61: "light rain",
+        63: "rain",
+        65: "heavy rain",
+        71: "light snow",
+        73: "snow",
+        75: "heavy snow",
+        80: "rain showers",
+        81: "rain showers",
+        82: "violent showers",
+        95: "thunderstorm",
+        96: "thunderstorm with hail",
+        99: "thunderstorm with hail"
+      };
+      return labels[code] || "conditions";
+    }
+
+    function clearConditionGlyphDefs() {
+      svg.querySelectorAll('[data-condition-def="true"]').forEach((el) => el.remove());
+      conditionDefId.counter = 0;
+    }
+
+    function conditionDefId(prefix) {
+      conditionDefId.counter = (conditionDefId.counter || 0) + 1;
+      return `${prefix}-${conditionDefId.counter}`;
+    }
+
+    function selectedDateForGlyphs() {
+      return selectedOpenMeteoDate() || "2026-07-05";
+    }
+
+    function sunEventsForDate(date) {
+      return sunEventsByDate.get(date) || (!openMeteoRows.length ? sampleSunEvents : null);
+    }
+
+    function selectedSunEvents() {
+      return sunEventsForDate(selectedDateForGlyphs());
+    }
+
+    function activeLocation() {
+      if (openMeteoLocation) return openMeteoLocation;
+      const lat = Number(latitudeInput.value);
+      const lon = Number(longitudeInput.value);
+      return {
+        lat: Number.isFinite(lat) ? lat : 50.03,
+        lon: Number.isFinite(lon) ? lon : 14.48
+      };
+    }
+
+    function localDateAtHour(dateString, hour) {
+      const [year, month, day] = dateString.split("-").map(Number);
+      const date = new Date(year, month - 1, day, 0, 0, 0, 0);
+      date.setMinutes(Math.round(hour * 60));
+      return date;
+    }
+
+    function dayOfYear(date) {
+      const start = Date.UTC(date.getFullYear(), 0, 0);
+      const current = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+      return (current - start) / 86400000;
+    }
+
+    function solarAzimuth(dateString, hour) {
+      const { lat, lon } = activeLocation();
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || !dateString || !Number.isFinite(hour)) return null;
+
+      const date = localDateAtHour(dateString, hour);
+      const localHour = date.getHours() + date.getMinutes() / 60 + date.getSeconds() / 3600;
+      const gamma = (2 * Math.PI / 365) * (dayOfYear(date) - 1 + (localHour - 12) / 24);
+      const equationOfTime = 229.18 * (
+        0.000075 +
+        0.001868 * Math.cos(gamma) -
+        0.032077 * Math.sin(gamma) -
+        0.014615 * Math.cos(2 * gamma) -
+        0.040849 * Math.sin(2 * gamma)
+      );
+      const declination = (
+        0.006918 -
+        0.399912 * Math.cos(gamma) +
+        0.070257 * Math.sin(gamma) -
+        0.006758 * Math.cos(2 * gamma) +
+        0.000907 * Math.sin(2 * gamma) -
+        0.002697 * Math.cos(3 * gamma) +
+        0.00148 * Math.sin(3 * gamma)
+      );
+      const timezoneHours = -date.getTimezoneOffset() / 60;
+      const solarMinutes = (localHour * 60 + equationOfTime + 4 * lon - 60 * timezoneHours + 1440) % 1440;
+      let hourAngle = solarMinutes / 4 - 180;
+      if (hourAngle < -180) hourAngle += 360;
+
+      const latRad = lat * Math.PI / 180;
+      const hourAngleRad = hourAngle * Math.PI / 180;
+      const azimuth = Math.atan2(
+        Math.sin(hourAngleRad),
+        Math.cos(hourAngleRad) * Math.sin(latRad) - Math.tan(declination) * Math.cos(latRad)
+      ) * 180 / Math.PI + 180;
+      return (azimuth + 360) % 360;
+    }
+
+    function formatAzimuth(dateString, hour) {
+      const azimuth = solarAzimuth(dateString, hour);
+      return Number.isFinite(azimuth) ? `${Math.round(azimuth)}°` : "";
+    }
+
+    function solarNoonHour(events) {
+      if (Number.isFinite(events?.solarNoonHour)) return events.solarNoonHour;
+      if (Number.isFinite(events?.sunriseHour) && Number.isFinite(events?.sunsetHour)) {
+        return (events.sunriseHour + events.sunsetHour) / 2;
+      }
+      return 12;
+    }
+
+    function rowIsDay(row) {
+      if (typeof row.isDay === "boolean") return row.isDay;
+      const events = sunEventsForDate(row.date || selectedDateForGlyphs());
+      if (events && Number.isFinite(events.sunriseHour) && Number.isFinite(events.sunsetHour)) {
+        return row.h >= events.sunriseHour && row.h < events.sunsetHour;
+      }
+      return row.h >= 6 && row.h < 20;
+    }
+
+    function moonPhaseForTime(time) {
+      const date = new Date(time || `${selectedDateForGlyphs()}T00:00`);
+      const timestamp = Number.isFinite(date.getTime()) ? date.getTime() : Date.UTC(2026, 6, 5);
+      const knownNewMoon = Date.UTC(2000, 0, 6, 18, 14);
+      const synodicMonth = 29.530588853;
+      const days = (timestamp - knownNewMoon) / 86400000;
+      return ((days / synodicMonth) % 1 + 1) % 1;
+    }
+
+    function rowMoonPhase(row) {
+      const hour = Math.floor(row.h);
+      const minute = Math.round((row.h - hour) * 60);
+      const time = row.time || `${row.date || selectedDateForGlyphs()}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+      return moonPhaseForTime(time);
+    }
+
+    function drawMoonDisc(group, phase) {
+      const defs = svg.querySelector("defs");
+      const clipId = conditionDefId("moonClip");
+      const clipPath = makeEl("clipPath", {
+        id: clipId,
+        "data-condition-def": "true",
+        clipPathUnits: "userSpaceOnUse"
+      });
+      clipPath.appendChild(makeEl("circle", { cx: -4, cy: -5, r: 8 }));
+      defs.appendChild(clipPath);
+
+      const moon = makeEl("g", { "clip-path": `url(#${clipId})` });
+      moon.appendChild(makeEl("circle", { cx: -4, cy: -5, r: 8, fill: "#dbe7f4" }));
+      const waxing = phase < 0.5;
+      const distance = phase < 0.5 ? phase / 0.5 : (1 - phase) / 0.5;
+      const offset = (waxing ? -1 : 1) * 17 * distance;
+      moon.appendChild(makeEl("circle", {
+        cx: -4 + offset,
+        cy: -5,
+        r: 8.35,
+        fill: "#263042"
+      }));
+      moon.appendChild(makeEl("circle", {
+        cx: -4,
+        cy: -5,
+        r: 8,
+        fill: "none",
+        stroke: "rgba(255,255,255,0.35)",
+        "stroke-width": 0.8
+      }));
+      group.appendChild(moon);
+    }
+
+    function drawSunDisc(group) {
+      group.appendChild(makeEl("circle", { cx: -4, cy: -5, r: 8, fill: "#ffd15c" }));
+    }
+
+    function drawWeatherGlyph(parent, type, cx, cy, scale = 1, options = {}) {
+      const attrs = {
+        transform: `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${scale})`,
+        opacity: 0.9,
+        "data-weather-glyph": type,
+        "data-night": String(Boolean(options.isNight))
+      };
+      if (options.sunEvent) attrs["data-sun-event"] = options.sunEvent;
+      const group = makeEl("g", attrs);
+      const isNight = options.isNight;
+
+      function cloud(opacity = 1) {
+        group.appendChild(makeEl("path", {
+          d: "M-13 5 H10 C14 5 17 2 17-2 C17-6 13-9 9-8 C6-14-3-14-6-8 C-11-8-15-5-15 0 C-18 1-18 5-13 5Z",
+          fill: "#eef1f7",
+          opacity
+        }));
+      }
+
+      if (type === "clear" || type === "partly") {
+        if (isNight) {
+          drawMoonDisc(group, options.moonPhase ?? 0);
+        } else {
+          drawSunDisc(group);
+        }
+      }
+      if (type === "partly" || type === "cloud" || type === "rain" || type === "snow" || type === "storm") {
+        cloud(type === "partly" ? 0.95 : 0.82);
+      }
+      if (type === "rain") {
+        [-7, 0, 7].forEach((offset) => {
+          group.appendChild(makeEl("line", {
+            x1: offset,
+            y1: 10,
+            x2: offset - 3,
+            y2: 17,
+            stroke: colors.rain,
+            "stroke-width": 2.4,
+            "stroke-linecap": "round"
+          }));
+        });
+      }
+      if (type === "snow") {
+        [-7, 0, 7].forEach((offset) => {
+          group.appendChild(makeEl("circle", { cx: offset, cy: 13, r: 2, fill: "#eef1f7" }));
+        });
+      }
+      if (type === "storm") {
+        group.appendChild(makeEl("path", {
+          d: "M-1 7 L-6 18 L1 15 L-2 24 L8 10 L1 13 Z",
+          fill: "#ffd15c"
+        }));
+      }
+      if (type === "fog") {
+        [-7, 0, 7].forEach((offset) => {
+          group.appendChild(makeEl("line", {
+            x1: -14,
+            y1: offset,
+            x2: 14,
+            y2: offset,
+            stroke: "#eef1f7",
+            "stroke-width": 2.4,
+            "stroke-linecap": "round",
+            opacity: 0.75
+          }));
+        });
+      }
+      parent.appendChild(group);
+    }
+
+    function conditionRowsForStep(step) {
+      const rows = forecast.filter((d) => Number.isInteger(d.h) && d.h >= 0 && d.h < 24);
+      const regular = rows.filter((d) => d.h % step === 0);
+      const finalHour = rows.find((d) => d.h === 23);
+      if (!finalHour || regular.some((d) => d.h === 23)) return regular;
+
+      const lastIndex = regular.length - 1;
+      if (lastIndex >= 0 && regular[lastIndex].h >= 22) {
+        return [...regular.slice(0, lastIndex), finalHour];
+      }
+      return [...regular, finalHour];
+    }
+
+    function conditionRowNearHour(hour) {
+      return forecast
+        .filter((d) => d.h >= 0 && d.h < 24)
+        .reduce((best, row) => Math.abs(row.h - hour) < Math.abs(best.h - hour) ? row : best, forecast[0]);
+    }
+
+    function conditionSymbolHour(row, step) {
+      const endHour = row.h >= 23 ? 24 : Math.min(24, row.h + step);
+      return row.h + (endHour - row.h) / 2;
+    }
+
+    function drawConditions() {
+      const group = makeEl("g", { class: "series", "data-metric": "conditions", "aria-hidden": "true" });
+      const compact = isCompactLayout();
+      const step = compact ? 4 : 2;
+      const scale = compact ? 0.58 : 0.72;
+      const glyphY = layout.top - 34;
+      const sunEventY = glyphY + 34 * scale * 0.3;
+      const symbolSpacing = x(step) - x(0);
+      const events = selectedSunEvents();
+      const sunMarkers = [
+        events && Number.isFinite(events.sunriseHour) ? { type: "sunrise", hour: events.sunriseHour } : null,
+        events && Number.isFinite(events.sunsetHour) ? { type: "sunset", hour: events.sunsetHour } : null
+      ].filter(Boolean);
+      conditionRowsForStep(step).forEach((d) => {
+        const symbolHour = conditionSymbolHour(d, step);
+        const tooCloseToSunEvent = sunMarkers.some((marker) => Math.abs(x(symbolHour) - x(marker.hour)) < symbolSpacing / 2);
+        if (tooCloseToSunEvent) return;
+        drawWeatherGlyph(group, conditionType(d.weatherCode), x(symbolHour), glyphY, scale, {
+          isNight: !rowIsDay(d),
+          moonPhase: rowMoonPhase(d)
+        });
+      });
+      sunMarkers.forEach((marker) => {
+        const eventRow = conditionRowNearHour(marker.hour);
+        drawWeatherGlyph(group, conditionType(eventRow.weatherCode), x(marker.hour), sunEventY, scale, {
+          isNight: false,
+          moonPhase: moonPhaseForTime(marker.type === "sunrise" ? events.sunrise : events.sunset),
+          sunEvent: marker.type
+        });
+      });
+      plot.appendChild(group);
+    }
+
+    function drawHumidity() {
+      const group = seriesGroup("humidity");
+      setHumidityGradient();
+      group.appendChild(makeEl("path", {
+        d: areaToTop(forecast, "humidity"),
+        fill: "url(#humidityFill)",
+        stroke: "none"
+      }));
+    }
+
+    function setHumidityGradient() {
+      const defs = svg.querySelector("defs");
+      const existing = document.getElementById("humidityFill");
+      if (existing) existing.remove();
+
+      const gradient = makeEl("linearGradient", {
+        id: "humidityFill",
+        gradientUnits: "userSpaceOnUse",
+        x1: 0,
+        y1: layout.top,
+        x2: 0,
+        y2: layout.top + chartHeight
+      });
+      const range = rangeFor("humidity");
+      const visibleMin = clamp(range.min, 0, 100);
+      const visibleMax = clamp(range.max, 0, 100);
+      const span = Math.max(1, visibleMax - visibleMin);
+      const baseOpacity = 0.34;
+
+      for (let i = 0; i <= 80; i += 1) {
+        const value = visibleMin + (span * i) / 80;
+        const opacity = round(baseOpacity * humidityOpacityMultiplier(value), 3);
+        gradient.appendChild(makeEl("stop", {
+          offset: `${round((i / 80) * 100, 2)}%`,
+          "stop-color": humidityFillColor(value),
+          "stop-opacity": opacity
+        }));
+      }
+
+      defs.appendChild(gradient);
+    }
+
+    function baseWindOpacityAtY(yValue) {
+      const ratio = clamp((yValue - layout.top) / chartHeight, 0, 1);
+      return 0.34 + (0.08 - 0.34) * ratio;
+    }
+
+    function windDistanceMultiplier(distanceFromCenter) {
+      return 0.3 + 1.2 * (1 - smoothStep(0, 1, clamp(distanceFromCenter, 0, 1)));
+    }
+
+    function windContourAmount(distanceFromCenterPx, half, hour) {
+      if (!windContourEnabled) return 0;
+      const normalizedDistance = clamp(distanceFromCenterPx / Math.max(1, half), 0, 1);
+      const phase = ((distanceFromCenterPx + hour * windContourDrift) / windContourSpacing) % 1;
+      const ridge = 1 - Math.abs(phase * 2 - 1);
+      const edgeEase = 1 - smoothStep(0.88, 1, normalizedDistance);
+      return smoothStep(0.58, 1, ridge) * edgeEase;
+    }
+
+    function clearWindGradients() {
+      svg.querySelectorAll('linearGradient[data-wind-fill="true"]').forEach((gradient) => gradient.remove());
+    }
+
+    function windBandPoints() {
+      const minThickness = layout.width < 520 ? 8 : 12;
+      return forecast.map((d) => {
+        const windSpeed = Number.isFinite(d.wind) ? d.wind : 0;
+        const gustSpeed = Math.max(Number.isFinite(d.gust) ? d.gust : windSpeed, windSpeed);
+        let upper = Math.min(y("gust", gustSpeed), y("wind", windSpeed));
+        let lower = Math.max(y("gust", gustSpeed), y("wind", windSpeed));
+        let middle = (upper + lower) / 2;
+        let half = Math.max((lower - upper) / 2, minThickness / 2);
+        upper = clamp(middle - half, layout.top, layout.top + chartHeight);
+        lower = clamp(middle + half, layout.top, layout.top + chartHeight);
+        if (lower - upper < minThickness) {
+          if (upper <= layout.top) lower = Math.min(layout.top + chartHeight, upper + minThickness);
+          if (lower >= layout.top + chartHeight) upper = Math.max(layout.top, lower - minThickness);
+        }
+        middle = (upper + lower) / 2;
+        half = (lower - upper) / 2;
+        return { h: d.h, middle, half };
+      });
+    }
+
+    function interpolateBandValue(points, key, hour) {
+      if (hour <= points[0].h) return points[0][key];
+      if (hour >= points[points.length - 1].h) return points[points.length - 1][key];
+      const index = Math.min(points.length - 1, Math.max(1, Math.ceil(hour)));
+      const p0 = points[Math.max(0, index - 2)][key];
+      const p1 = points[index - 1][key];
+      const p2 = points[index][key];
+      const p3 = points[Math.min(points.length - 1, index + 1)][key];
+      const span = points[index].h - points[index - 1].h || 1;
+      const t = clamp((hour - points[index - 1].h) / span, 0, 1);
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const value = 0.5 * (
+        (2 * p1)
+        + (-p0 + p2) * t
+        + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2
+        + (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+      );
+      return clamp(value, Math.min(p1, p2), Math.max(p1, p2));
+    }
+
+    function renderWindField(points) {
+      const width = Math.max(1, Math.round(chartWidth));
+      const height = Math.max(1, Math.round(chartHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      const image = context.createImageData(width, height);
+      const windColor = hexToRgb(colors.wind);
+      const contourColor = hexToRgb(windContourShadow);
+
+      for (let px = 0; px < width; px += 1) {
+        const hour = (px / Math.max(1, width - 1)) * 24;
+        const middle = interpolateBandValue(points, "middle", hour);
+        const half = Math.max(1, interpolateBandValue(points, "half", hour));
+        const upper = middle - half;
+        const lower = middle + half;
+        const startY = Math.max(0, Math.floor(upper - layout.top - 2));
+        const endY = Math.min(height - 1, Math.ceil(lower - layout.top + 2));
+
+        for (let py = startY; py <= endY; py += 1) {
+          const yValue = layout.top + py + 0.5;
+          const distanceToEdge = Math.min(yValue - upper, lower - yValue);
+          if (distanceToEdge < 0) continue;
+          const edgeFade = clamp(distanceToEdge / 1.5, 0, 1);
+          const distanceFromCenter = clamp(Math.abs(yValue - middle) / half, 0, 1);
+          const opacity = baseWindOpacityAtY(yValue) * windDistanceMultiplier(distanceFromCenter) * edgeFade;
+          const contour = windContourAmount(Math.abs(yValue - middle), half, hour) * windContourStrength;
+          const offset = (py * width + px) * 4;
+          image.data[offset] = windColor.r + (contourColor.r - windColor.r) * contour;
+          image.data[offset + 1] = windColor.g + (contourColor.g - windColor.g) * contour;
+          image.data[offset + 2] = windColor.b + (contourColor.b - windColor.b) * contour;
+          image.data[offset + 3] = clamp(Math.round(opacity * 255), 0, 255);
+        }
+      }
+
+      context.putImageData(image, 0, 0);
+      return canvas.toDataURL("image/png");
+    }
+
+    function drawWind() {
+      const group = seriesGroup("wind");
+      clearWindGradients();
+      const points = windBandPoints();
+      group.appendChild(makeEl("image", {
+        x: layout.left,
+        y: layout.top,
+        width: chartWidth,
+        height: chartHeight,
+        href: renderWindField(points),
+        preserveAspectRatio: "none"
+      }));
+    }
+
+    function drawTemperature() {
+      const group = seriesGroup("temperature");
+      drawTempGradientLine(group, forecast, "actual", 3, 0.3);
+      drawTempGradientLine(group, forecast, "feels", 4.8, 1);
+
+      const high = forecast.reduce((best, d) => d.feels > best.feels ? d : best, forecast[0]);
+      const low = forecast.reduce((best, d) => d.feels < best.feels ? d : best, forecast[0]);
+      [
+        { data: high },
+        { data: low }
+      ].forEach((item) => {
+        const cx = x(item.data.h);
+        const cy = y("feels", item.data.feels);
+        group.appendChild(makeEl("circle", {
+          cx,
+          cy,
+          r: 3.4,
+          fill: tempColor(item.data.feels),
+          stroke: "#151820",
+          "stroke-width": 1.2,
+          opacity: 0.72
+        }));
+      });
+    }
+
+    function consecutiveRuns(points) {
+      const runs = [];
+      let run = [];
+      points.forEach((point, index) => {
+        if (!run.length || point.h - points[index - 1].h <= 1.01) {
+          run.push(point);
+        } else {
+          runs.push(run);
+          run = [point];
+        }
+      });
+      if (run.length) runs.push(run);
+      return runs;
+    }
+
+    function probabilityOpacity(value) {
+      return clamp(value / 100, 0, 1);
+    }
+
+    function rainProbabilityOpacity(value) {
+      return focusedMetric() === "rain" ? 1 : probabilityOpacity(value);
+    }
+
+    function valueOpacity(key, value, maxOpacity = 1) {
+      if (!Number.isFinite(value) || value <= 0) return 0;
+      const range = rangeFor(key);
+      const max = Math.max(1, range.rawMax ?? range.max ?? value);
+      return maxOpacity * clamp(value / max, 0, 1);
+    }
+
+    function drawRain() {
+      const group = seriesGroup("rain");
+      consecutiveRuns(forecast.filter((d) => d.pop > 0)).forEach((run) => {
+        if (run.length > 1) {
+          for (let i = 1; i < run.length; i += 1) {
+            const prev = run[i - 1];
+            const next = run[i];
+            group.appendChild(makeEl("path", {
+              d: `M ${point(prev, "pop")} ${curveSegment(run, "pop", i)}`,
+              class: "line",
+              stroke: colors.rain,
+              "stroke-width": 3,
+              "stroke-dasharray": "6 9",
+              "stroke-opacity": rainProbabilityOpacity((prev.pop + next.pop) / 2)
+            }));
+          }
+        } else {
+          group.appendChild(makeEl("circle", {
+            cx: x(run[0].h),
+            cy: y("pop", run[0].pop),
+            r: 4,
+            fill: colors.rain,
+            opacity: rainProbabilityOpacity(run[0].pop)
+          }));
+        }
+      });
+
+      forecast.filter((d) => d.rain > 0).forEach((d) => {
+        const barWidth = layout.width < 520 ? 8 : 16;
+        const bottom = y("rain", d.rain);
+        group.appendChild(makeEl("rect", {
+          x: x(d.h) - barWidth / 2,
+          y: layout.top,
+          width: barWidth,
+          height: bottom - layout.top,
+          rx: 4,
+          fill: colors.rain,
+          opacity: 0.9
+        }));
+      });
+    }
+
+    function clearVisibilityMask() {
+      const existing = document.getElementById("visibilityCutoutMask");
+      if (existing) existing.remove();
+    }
+
+    function clearHistoryFadeMask() {
+      svg.querySelectorAll('[data-history-fade="true"]').forEach((el) => el.remove());
+    }
+
+    function visibilityStrokeWidth() {
+      return Math.max(18, chartHeight * 0.1);
+    }
+
+    function visibilityStrokeAttrs(extra = {}) {
+      return {
+        d: pathFrom(forecast, "visibility"),
+        class: "line",
+        "stroke-width": visibilityStrokeWidth(),
+        fill: "none",
+        filter: "url(#visibilityBlur)",
+        ...extra
+      };
+    }
+
+    function visibilityMaskPoints() {
+      return forecast.map((d) => ({ h: d.h, center: y("visibility", d.visibility) }));
+    }
+
+    function visibilityCutStrength(distance, strokeWidth) {
+      const outerRadius = strokeWidth * 1.02;
+      return visibilityIntensity * (1 - smoothStep(0, outerRadius, distance));
+    }
+
+    function renderVisibilityMaskField(points) {
+      const width = Math.max(1, Math.round(layout.width));
+      const height = Math.max(1, Math.round(layout.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      const image = context.createImageData(width, height);
+      image.data.fill(255);
+
+      const strokeWidth = visibilityStrokeWidth();
+      const outerRadius = strokeWidth * 1.02;
+      const startX = Math.max(0, Math.floor(layout.left));
+      const endX = Math.min(width - 1, Math.ceil(layout.left + chartWidth));
+
+      for (let px = startX; px <= endX; px += 1) {
+        const hour = clamp(((px + 0.5 - layout.left) / chartWidth) * 24, 0, 24);
+        const center = interpolateBandValue(points, "center", hour);
+        const startY = Math.max(0, Math.floor(center - outerRadius - 1));
+        const endY = Math.min(height - 1, Math.ceil(center + outerRadius + 1));
+
+        for (let py = startY; py <= endY; py += 1) {
+          const distance = Math.abs(py + 0.5 - center);
+          const cut = visibilityCutStrength(distance, strokeWidth);
+          const visible = 1 - cut;
+          const offset = (py * width + px) * 4;
+          image.data[offset + 3] = clamp(Math.round(visible * 255), 0, 255);
+        }
+      }
+
+      context.putImageData(image, 0, 0);
+      return canvas.toDataURL("image/png");
+    }
+
+    function createVisibilityCutoutMask() {
+      clearVisibilityMask();
+      const defs = svg.querySelector("defs");
+      const mask = makeEl("mask", {
+        id: "visibilityCutoutMask",
+        maskUnits: "userSpaceOnUse",
+        x: 0,
+        y: 0,
+        width: layout.width,
+        height: layout.height,
+        "mask-type": "luminance",
+        style: "mask-type: luminance"
+      });
+      mask.appendChild(makeEl("image", {
+        x: 0,
+        y: 0,
+        width: layout.width,
+        height: layout.height,
+        href: renderVisibilityMaskField(visibilityMaskPoints()),
+        preserveAspectRatio: "none"
+      }));
+      defs.appendChild(mask);
+      return mask.id;
+    }
+
+    function hourValueFromTime(time) {
+      const text = String(time || "");
+      const hour = Number(text.slice(11, 13));
+      const minute = Number(text.slice(14, 16));
+      if (!Number.isFinite(hour)) return null;
+      return clamp(hour + (Number.isFinite(minute) ? minute / 60 : 0), 0, 24);
+    }
+
+    function shouldFadeCurrentDayHistory() {
+      return selectedDayOffset === 0 && openMeteoCurrentTime && openMeteoReferenceDate && forecast.some((row) => row.date === openMeteoReferenceDate);
+    }
+
+    function createHistoryFadeMask() {
+      clearHistoryFadeMask();
+      if (!shouldFadeCurrentDayHistory()) return "";
+
+      const currentHour = hourValueFromTime(openMeteoCurrentTime);
+      if (!Number.isFinite(currentHour) || currentHour <= 0) return "";
+
+      const defs = svg.querySelector("defs");
+      const maskId = "currentDayHistoryFadeMask";
+      const gradientId = "currentDayHistoryFadeGradient";
+      const fadeStartHour = Math.max(0, currentHour - 1);
+      const fadeStartX = x(fadeStartHour);
+      const currentX = x(currentHour);
+      const plotRight = layout.left + chartWidth;
+      const mask = makeEl("mask", {
+        id: maskId,
+        "data-history-fade": "true",
+        maskUnits: "userSpaceOnUse",
+        x: 0,
+        y: 0,
+        width: layout.width,
+        height: layout.height,
+        "mask-type": "luminance",
+        style: "mask-type: luminance"
+      });
+
+      mask.appendChild(makeEl("rect", {
+        x: 0,
+        y: 0,
+        width: layout.width,
+        height: layout.height,
+        fill: "white"
+      }));
+
+      if (fadeStartX > layout.left) {
+        mask.appendChild(makeEl("rect", {
+          x: layout.left,
+          y: layout.top,
+          width: fadeStartX - layout.left,
+          height: chartHeight,
+          fill: "black",
+          opacity: 0.7
+        }));
+      }
+
+      if (currentX > fadeStartX) {
+        const gradient = makeEl("linearGradient", {
+          id: gradientId,
+          "data-history-fade": "true",
+          gradientUnits: "userSpaceOnUse",
+          x1: fadeStartX,
+          y1: 0,
+          x2: currentX,
+          y2: 0
+        });
+        gradient.appendChild(makeEl("stop", { offset: "0%", "stop-color": "black", "stop-opacity": 0.7 }));
+        gradient.appendChild(makeEl("stop", { offset: "100%", "stop-color": "black", "stop-opacity": 0 }));
+        defs.appendChild(gradient);
+        mask.appendChild(makeEl("rect", {
+          x: fadeStartX,
+          y: layout.top,
+          width: Math.min(currentX, plotRight) - fadeStartX,
+          height: chartHeight,
+          fill: `url(#${gradientId})`
+        }));
+      }
+
+      defs.appendChild(mask);
+      return maskId;
+    }
+
+    function drawVisibilityOverlay() {
+      const group = seriesGroup("visibility");
+      group.appendChild(makeEl("path", visibilityStrokeAttrs({
+        stroke: colors.visibility,
+        opacity: visibilityIntensity
+      })));
+    }
+
+    function drawVisibilityMaskIndicator() {
+      const group = seriesGroup("visibility");
+      group.appendChild(makeEl("path", visibilityStrokeAttrs({
+        stroke: colors.visibility,
+        opacity: 0
+      })));
+    }
+
+    function applyVisibilityTreatment(maskedLayer) {
+      if (visibilityMode === "mask") {
+        const maskId = createVisibilityCutoutMask();
+        maskedLayer.setAttribute("mask", `url(#${maskId})`);
+        drawVisibilityMaskIndicator();
+        return;
+      }
+      clearVisibilityMask();
+      drawVisibilityOverlay();
+    }
+
+    function interpolateUvCrossing(prev, next, target) {
+      if (next.uv === prev.uv) return { ...next, uv: target };
+      const ratio = clamp((target - prev.uv) / (next.uv - prev.uv), 0, 1);
+      return {
+        ...next,
+        h: prev.h + (next.h - prev.h) * ratio,
+        uv: target
+      };
+    }
+
+    function getUvEvents() {
+      const uvRows = forecast.filter((d) => Number.isFinite(d.uv));
+      if (!uvRows.length) return { peak: null, above: null, below: null };
+
+      const peak = uvRows.reduce((best, d) => d.uv > best.uv ? d : best, uvRows[0]);
+      const crossings = [];
+      for (let i = 1; i < uvRows.length; i += 1) {
+        const prev = uvRows[i - 1];
+        const next = uvRows[i];
+        if (prev.uv < 3 && next.uv >= 3) {
+          crossings.push({ type: "above", data: interpolateUvCrossing(prev, next, 3) });
+        }
+        if (prev.uv >= 3 && next.uv < 3) {
+          crossings.push({ type: "below", data: interpolateUvCrossing(prev, next, 3) });
+        }
+      }
+
+      const above = crossings.find((crossing) => crossing.type === "above")?.data
+        || (uvRows[0].uv >= 3 ? uvRows[0] : null);
+      const below = crossings.find((crossing) => crossing.type === "below" && crossing.data.h > peak.h)?.data
+        || [...crossings].reverse().find((crossing) => crossing.type === "below")?.data
+        || null;
+      return { peak, above, below };
+    }
+
+    function drawUv() {
+      const group = seriesGroup("uv");
+      const events = getUvEvents();
+      const crossingsAreTight = events.above && events.below && Math.abs(events.below.h - events.above.h) < 2;
+      const markers = [
+        { type: "above", data: events.above, label: "^", opacity: 0.58 },
+        { type: "peak", data: events.peak, label: events.peak ? String(events.peak.uv) : "", opacity: 0.8 },
+        { type: "below", data: events.below, label: "v", opacity: 0.58 }
+      ].filter((item) => item.data && (!crossingsAreTight || item.type === "peak"));
+
+      markers.forEach((item) => {
+        const marker = makeEl("text", {
+          x: x(item.data.h),
+          y: layout.top + chartHeight + 18,
+          class: "axis-label uv-axis-mark",
+          "text-anchor": "middle",
+          opacity: item.opacity
+        });
+        marker.textContent = item.label;
+        group.appendChild(marker);
+      });
+    }
+
+    function airQualityLineStyle(key) {
+      if (key === "pm2_5") return { width: 2.6, opacity: 0.9, dash: "1 7" };
+      if (key === "dust") return { width: 2.4, opacity: 0.72, dash: "7 7" };
+      return { width: 2, opacity: 0.58, dash: "4 8" };
+    }
+
+    function focusedMetric() {
+      return activeMetric || hoverMetric;
+    }
+
+    function needsFocusRender(metric) {
+      return metric === "rain" || isAirQualityMetric(metric);
+    }
+
+    function airQualityOpacity(key, value, maxOpacity) {
+      return focusedMetric() === key ? maxOpacity : valueOpacity(key, value, maxOpacity);
+    }
+
+    function drawAirQualityMetric(key) {
+      const points = forecast.filter((d) => Number.isFinite(d[key]) && d[key] > 0);
+      if (!points.length) return;
+
+      const group = seriesGroup(key);
+      const style = airQualityLineStyle(key);
+      consecutiveRuns(points).forEach((run) => {
+        if (run.length > 1) {
+          for (let i = 1; i < run.length; i += 1) {
+            const prev = run[i - 1];
+            const next = run[i];
+            const attrs = {
+              d: linearPathFromY([prev, next], key, airQualityY),
+              class: "line",
+              stroke: colors[key],
+              "stroke-width": style.width,
+              "stroke-opacity": airQualityOpacity(key, (prev[key] + next[key]) / 2, style.opacity)
+            };
+            if (style.dash) attrs["stroke-dasharray"] = style.dash;
+            group.appendChild(makeEl("path", attrs));
+          }
+        } else {
+          group.appendChild(makeEl("circle", {
+            cx: x(run[0].h),
+            cy: airQualityY(key, run[0][key]),
+            r: 3,
+            fill: colors[key],
+            opacity: airQualityOpacity(key, run[0][key], style.opacity)
+          }));
+        }
+      });
+    }
+
+    function comparisonDisplayMetric() {
+      const metric = focusedMetric();
+      if (isAirQualityMetric(metric) && metricHasVisibleData({ id: metric })) return metric;
+      return "";
+    }
+
+    function drawAirQualityComparisonLines() {
+      const key = comparisonDisplayMetric();
+      if (!key) return;
+      const comparisons = airQualityComparisons.filter((item) => !item.isCurrent && item.rows?.some((row) => Number.isFinite(row[key]) && row[key] > 0));
+      if (!comparisons.length) return;
+
+      const group = makeEl("g", {
+        class: "series",
+        "data-metric": key,
+        "aria-hidden": "true"
+      });
+      plot.appendChild(group);
+
+      comparisons.forEach((comparison, index) => {
+        const points = comparison.rows.filter((row) => Number.isFinite(row[key]) && row[key] > 0);
+        const baseOpacity = Math.max(0.06, 0.16 - index * 0.018);
+        consecutiveRuns(points).forEach((run) => {
+          if (run.length < 2) return;
+          for (let i = 1; i < run.length; i += 1) {
+            const prev = run[i - 1];
+            const next = run[i];
+            group.appendChild(makeEl("path", {
+              d: linearPathFromY([prev, next], key, airQualityY),
+              class: "line",
+              stroke: colors[key],
+              "stroke-width": key === "pm2_5" ? 1.9 : 1.6,
+              "stroke-opacity": airQualityOpacity(key, (prev[key] + next[key]) / 2, baseOpacity),
+              "stroke-dasharray": key === "pm2_5" ? "1 7" : "2 8"
+            }));
+          }
+        });
+      });
+    }
+
+    function drawAirQuality() {
+      drawAirQualityComparisonLines();
+      airQualityKeys.forEach((key) => drawAirQualityMetric(key));
+    }
+
+    function dataForHour(hour) {
+      return forecast.find((d) => d.h === hour) || forecast.reduce((best, d) => Math.abs(d.h - hour) < Math.abs(best.h - hour) ? d : best, forecast[0]);
+    }
+
+    function scrubberDotColor(key, value) {
+      if (key === "actual" || key === "feels") return tempColor(value);
+      if (key === "gust") return colors.wind;
+      if (key === "pop") return colors.rain;
+      return colors[key] || colors.feels;
+    }
+
+    function scrubberDotOpacity(key, value) {
+      if (key === "actual") return 0.32;
+      if (key === "feels") return 0.72;
+      if (key === "humidity") return 0.18 + 0.34 * humidityOpacityMultiplier(value);
+      if (key === "gust") return 0.52;
+      if (key === "pop") return 0.18 + 0.58 * rainProbabilityOpacity(value);
+      if (isAirQualityMetric(key)) {
+        const style = airQualityLineStyle(key);
+        return clamp(airQualityOpacity(key, value, style.opacity) * 0.85, 0.12, 0.62);
+      }
+      return 0.55;
+    }
+
+    function shouldDrawScrubberDot(key, value) {
+      if (!Number.isFinite(value)) return false;
+      if (key === "pop") return value > 0;
+      if (isAirQualityMetric(key)) return value > 0;
+      return true;
+    }
+
+    function setScrubberVisible(visible) {
+      scrubberVisible = visible;
+      const group = document.getElementById("scrubber");
+      if (group) group.setAttribute("display", visible ? "inline" : "none");
+    }
+
+    function drawScrubber() {
+      const data = dataForHour(selectedHour);
+      const group = makeEl("g", {
+        id: "scrubber",
+        "aria-hidden": "true",
+        display: scrubberVisible ? "inline" : "none"
+      });
+      group.appendChild(makeEl("line", {
+        id: "scrubberLine",
+        class: "scrubber-line",
+        x1: x(selectedHour),
+        y1: layout.top,
+        x2: x(selectedHour),
+        y2: layout.top + chartHeight
+      }));
+      scrubberKeys.forEach((key) => {
+        if (!shouldDrawScrubberDot(key, data[key])) return;
+        group.appendChild(makeEl("circle", {
+          class: "scrubber-dot",
+          "data-dot": key,
+          cx: x(selectedHour),
+          cy: metricY(key, data[key]),
+          r: 2.7,
+          opacity: scrubberDotOpacity(key, data[key]),
+          style: `--dot: ${scrubberDotColor(key, data[key])}`
+        }));
+      });
+      plot.appendChild(group);
+    }
+
+    function formatUnit(value, unit, places = 1) {
+      return Number.isFinite(value) ? `${round(value, places)} ${unit}` : "n/a";
+    }
+
+    function formatConcentration(value) {
+      return formatUnit(value, "&micro;g/m&sup3;");
+    }
+
+    function formatPollen(value) {
+      return formatUnit(value, "𖡼/m&sup3;");
+    }
+
+    function averageFinite(rows, key) {
+      const values = rows.map((row) => row[key]).filter(Number.isFinite);
+      if (!values.length) return null;
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
+    function maxFiniteValue(rows, key) {
+      const point = maxFinitePoint(rows, key);
+      return point ? point[key] : null;
+    }
+
+    function metricLabel(key) {
+      return metricConfig.find((metric) => metric.id === key)?.label || key;
+    }
+
+    function peakPollenForRows(rows) {
+      return pollenKeys.reduce((best, key) => {
+        const point = maxFinitePoint(rows, key);
+        if (!point) return best;
+        const value = point[key];
+        if (!best || value > best.value) {
+          return { key, label: metricLabel(key), value, h: point.h };
+        }
+        return best;
+      }, null);
+    }
+
+    function dailyAirMetrics(rows) {
+      const pm25Avg = averageFinite(rows, "pm2_5");
+      const dustAvg = averageFinite(rows, "dust");
+      const pollenValues = pollenKeys.reduce((values, key) => ({
+        ...values,
+        [key]: maxFiniteValue(rows, key)
+      }), {});
+      return {
+        pm2_5: pm25Avg,
+        dust: dustAvg,
+        ...pollenValues
+      };
+    }
+
+    function dailyMetricValues(rows, key) {
+      const rowsByDate = rows
+        .filter((row) => row.h < 24)
+        .reduce((groups, row) => {
+          if (!groups.has(row.date)) groups.set(row.date, []);
+          groups.get(row.date).push(row);
+          return groups;
+        }, new Map());
+      return [...rowsByDate.entries()]
+        .map(([date, dayRows]) => ({
+          date,
+          value: airHistoryMetricValue(dayRows, key)
+        }))
+        .filter((item) => Number.isFinite(item.value));
+    }
+
+    function airRangeMetrics(rows) {
+      return airQualityKeys.reduce((metrics, key) => {
+        const values = dailyMetricValues(rows, key).map((item) => item.value);
+        metrics[key] = values.length
+          ? { min: Math.min(...values), max: Math.max(...values) }
+          : null;
+        return metrics;
+      }, {});
+    }
+
+    function summarizeAirQualityWindow(year, date, rows, isCurrent = false) {
+      const startDate = addDays(date, -29);
+      const windowRows = rows.filter((row) => row.date >= startDate && row.date <= date && row.h < 24);
+      const dayRows = rows.filter((row) => row.date === date && row.h < 24);
+      const metrics = dailyAirMetrics(dayRows);
+      return {
+        year,
+        date,
+        startDate,
+        isCurrent,
+        rows: dayRows,
+        windowRows,
+        metrics,
+        rangeMetrics: airRangeMetrics(windowRows),
+        pm25Avg: metrics.pm2_5,
+        dustAvg: metrics.dust,
+        pollenPeak: peakPollenForRows(dayRows)
+      };
+    }
+
+    function strongestPollenAt(data) {
+      return pollenKeys.reduce((best, key) => {
+        const value = data[key];
+        if (!Number.isFinite(value)) return best;
+        if (!best || value > best.value) return { key, value };
+        return best;
+      }, null);
+    }
+
+    const metricConfig = [
+      { id: "temperature", label: "Temp", color: colors.feels, value: (d) => `${d.actual}&deg; / ~${d.feels}&deg;C` },
+      { id: "rain", label: "Rain", color: colors.rain, value: (d) => `${d.pop}%, ${d.rain.toFixed(1)} mm` },
+      { id: "wind", label: "Wind", color: colors.wind, value: (d) => `${d.wind}-${d.gust} ${windUnitHtml()}` },
+      { id: "humidity", label: "Humidity", color: colors.humidity, value: (d) => `${d.humidity}%` },
+      { id: "visibility", label: "Visibility", color: colors.visibility, value: (d) => `${d.visibility} km` },
+      { id: "uv", label: "UV", color: colors.uv, value: (d) => `${d.uv}` },
+      { id: "pm2_5", label: "PM2.5", color: colors.pm2_5, value: (d) => formatConcentration(d.pm2_5) },
+      { id: "dust", label: "Dust", color: colors.dust, value: (d) => formatConcentration(d.dust) },
+      { id: "alder_pollen", label: "Alder", color: colors.alder_pollen, value: (d) => formatPollen(d.alder_pollen) },
+      { id: "birch_pollen", label: "Birch", color: colors.birch_pollen, value: (d) => formatPollen(d.birch_pollen) },
+      { id: "grass_pollen", label: "Grass", color: colors.grass_pollen, value: (d) => formatPollen(d.grass_pollen) },
+      { id: "mugwort_pollen", label: "Mugwort", color: colors.mugwort_pollen, value: (d) => formatPollen(d.mugwort_pollen) },
+      { id: "olive_pollen", label: "Olive", color: colors.olive_pollen, value: (d) => formatPollen(d.olive_pollen) }
+    ];
+
+    const airHistoryColumns = [
+      { key: "pm2_5", label: "PM2.5", unit: "μg/m³", color: colors.pm2_5 },
+      { key: "dust", label: "Dust", unit: "μg/m³", color: colors.dust },
+      { key: "alder_pollen", label: "Alder", unit: "𖡼/m³", color: colors.alder_pollen },
+      { key: "birch_pollen", label: "Birch", unit: "𖡼/m³", color: colors.birch_pollen },
+      { key: "grass_pollen", label: "Grass", unit: "𖡼/m³", color: colors.grass_pollen },
+      { key: "mugwort_pollen", label: "Mugwort", unit: "𖡼/m³", color: colors.mugwort_pollen },
+      { key: "olive_pollen", label: "Olive", unit: "𖡼/m³", color: colors.olive_pollen }
+    ];
+
+    function dayRowsForVisibility() {
+      return forecast.filter((row) => row.h < 24);
+    }
+
+    function hasFiniteMetric(rows, keys) {
+      return rows.some((row) => keys.some((key) => Number.isFinite(row[key])));
+    }
+
+    function hasNonzeroMetric(rows, keys) {
+      return rows.some((row) => keys.some((key) => Number.isFinite(row[key]) && row[key] > 0));
+    }
+
+    function metricHasVisibleData(metric) {
+      const rows = dayRowsForVisibility();
+      if (!rows.length) return true;
+      if (metric.id === "temperature") return hasFiniteMetric(rows, ["actual", "feels"]);
+      if (metric.id === "rain") return hasNonzeroMetric(rows, ["pop", "rain"]);
+      if (metric.id === "wind") return hasNonzeroMetric(rows, ["wind", "gust"]);
+      if (metric.id === "humidity") return hasFiniteMetric(rows, ["humidity"]);
+      if (metric.id === "visibility") return hasFiniteMetric(rows, ["visibility"]);
+      if (metric.id === "uv") return hasNonzeroMetric(rows, ["uv"]);
+      if (isAirQualityMetric(metric.id)) return hasNonzeroMetric(rows, [metric.id]);
+      return true;
+    }
+
+    function visibleMetricConfigs() {
+      return metricConfig.filter((metric) => metric.id !== "uv" && metricHasVisibleData(metric));
+    }
+
+    function clearHiddenFocusedMetric() {
+      const visibleIds = new Set(visibleMetricConfigs().map((metric) => metric.id));
+      if (activeMetric && !visibleIds.has(activeMetric)) activeMetric = null;
+      if (hoverMetric && !visibleIds.has(hoverMetric)) hoverMetric = null;
+      if (suppressedHoverMetric && !visibleIds.has(suppressedHoverMetric)) suppressedHoverMetric = null;
+    }
+
+    function drawLegend() {
+      legend.innerHTML = "";
+      clearHiddenFocusedMetric();
+      visibleMetricConfigs().forEach((metric) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "legend-item";
+        button.dataset.metric = metric.id;
+        button.setAttribute("aria-pressed", String(focusedMetric() === metric.id));
+        button.style.setProperty("--swatch", metric.color);
+        button.innerHTML = `
+          <span class="swatch" aria-hidden="true"></span>
+          <span>
+            <span class="legend-label">${metric.label}</span>
+            <span class="legend-value" data-value="${metric.id}"></span>
+          </span>
+        `;
+        button.addEventListener("click", () => {
+          const wasActive = activeMetric === metric.id;
+          activeMetric = wasActive ? null : metric.id;
+          hoverMetric = null;
+          suppressedHoverMetric = wasActive ? metric.id : null;
+          render();
+        });
+        legend.appendChild(button);
+      });
+    }
+
+    function setHoverFocus(metric) {
+      if (activeMetric) return;
+      if (hoverMetric === metric) return;
+
+      const previousMetric = hoverMetric;
+      hoverMetric = metric;
+      if (needsFocusRender(previousMetric) || needsFocusRender(metric)) {
+        render();
+      } else {
+        setHighlight(metric);
+      }
+    }
+
+    function legendMetricFromEvent(event) {
+      const item = event.target.closest?.(".legend-item");
+      return item?.dataset.metric || null;
+    }
+
+    function setHighlight(metric) {
+      document.querySelectorAll(".series").forEach((el) => {
+        const match = metric && el.dataset.metric === metric;
+        el.classList.toggle("dimmed", Boolean(metric && !match));
+        el.classList.toggle("highlighted", Boolean(match));
+      });
+    }
+
+    function updateHighlight() {
+      setHighlight(focusedMetric());
+      document.querySelectorAll(".legend-item").forEach((item) => {
+        item.setAttribute("aria-pressed", String(item.dataset.metric === focusedMetric()));
+      });
+    }
+
+    function formatHour(hour) {
+      if (hour === 24) return "24:00";
+      let whole = Math.floor(hour);
+      let minutes = Math.round((hour - whole) * 60);
+      if (minutes === 60) {
+        whole += 1;
+        minutes = 0;
+      }
+      return `${String(whole).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+    }
+
+    function formatChartDate(dateString) {
+      if (!dateString) return "Sample day";
+      const [year, month, day] = dateString.split("-").map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      return new Intl.DateTimeFormat("en", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC"
+      }).format(date);
+    }
+
+    function chartDateLabel() {
+      const selectedDate = selectedOpenMeteoDate();
+      if (!selectedDate) return "Sample day";
+      const relative = dayOffsetLabel(selectedDayOffset);
+      return `${relative[0].toUpperCase()}${relative.slice(1)} · ${formatChartDate(selectedDate)}`;
+    }
+
+    function updateLegendValues() {
+      const data = dataForHour(selectedHour);
+      metricConfig.forEach((metric) => {
+        const valueNode = legend.querySelector(`[data-value="${metric.id}"]`);
+        if (valueNode) valueNode.innerHTML = metric.value(data);
+      });
+    }
+
+    function formatHistoryCell(value) {
+      return Number.isFinite(value) ? String(round(value, 1)) : "";
+    }
+
+    function visibleAirHistoryColumns() {
+      return airHistoryColumns.filter((column) => (
+        airQualityComparisons.some((item) => {
+          const value = item.metrics?.[column.key];
+          const range = item.rangeMetrics?.[column.key];
+          return (Number.isFinite(value) && value > 0) || (range && Number.isFinite(range.max) && range.max > 0);
+        })
+      ));
+    }
+
+    function airHistoryMetricValue(rows, key) {
+      if (pollenKeys.includes(key)) return maxFiniteValue(rows, key);
+      return averageFinite(rows, key);
+    }
+
+    function dateDistanceDays(startDate, endDate) {
+      const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
+      const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
+      const start = Date.UTC(startYear, startMonth - 1, startDay);
+      const end = Date.UTC(endYear, endMonth - 1, endDay);
+      return Math.round((end - start) / (24 * 60 * 60 * 1000));
+    }
+
+    function recentAqOpacity(ageDays) {
+      if (!Number.isFinite(ageDays)) return 0.1;
+      if (ageDays <= 0) return 1;
+      if (ageDays <= 5) return 1 - (ageDays / 5) * 0.3;
+      if (ageDays <= 7) return 0.7 - ((ageDays - 5) / 2) * 0.2;
+      if (ageDays <= 10) return 0.5 - ((ageDays - 7) / 3) * 0.2;
+      return 0.1;
+    }
+
+    function aqRangePosition(min, max, value) {
+      if (!Number.isFinite(value)) return null;
+      if (min === max) return 0.5;
+      return clamp((value - min) / (max - min), 0, 1);
+    }
+
+    function aqRangeSegment(min, max, segmentMin, segmentMax) {
+      if (![min, max, segmentMin, segmentMax].every(Number.isFinite)) {
+        return { start: 0, width: 0 };
+      }
+      if (min === max) return { start: 0, width: 100 };
+      let start = aqRangePosition(min, max, segmentMin) * 100;
+      let end = aqRangePosition(min, max, segmentMax) * 100;
+      if (end < start) [start, end] = [end, start];
+      if (end - start < 2.4) {
+        const center = (start + end) / 2;
+        start = clamp(center - 1.2, 0, 97.6);
+        end = start + 2.4;
+      }
+      return {
+        start,
+        width: end - start
+      };
+    }
+
+    function recentAqValueRange(values, currentDate, count = 5) {
+      const recentValues = values
+        .map((item) => ({
+          ...item,
+          ageDays: dateDistanceDays(item.date, currentDate)
+        }))
+        .filter((item) => item.ageDays >= 0)
+        .sort((a, b) => a.ageDays - b.ageDays)
+        .slice(0, count)
+        .map((item) => item.value)
+        .filter(Number.isFinite);
+      if (!recentValues.length) return null;
+      return {
+        min: Math.min(...recentValues),
+        max: Math.max(...recentValues)
+      };
+    }
+
+    function aqTrendDirection(values, currentDate) {
+      const recentValues = values
+        .map((item) => ({
+          ...item,
+          ageDays: dateDistanceDays(item.date, currentDate)
+        }))
+        .filter((item) => item.ageDays >= 0 && item.ageDays <= 6)
+        .sort((a, b) => a.ageDays - b.ageDays)
+        .reverse();
+      if (recentValues.length < 2) return "flat";
+
+      const firstValue = recentValues[0].value;
+      const lastValue = recentValues[recentValues.length - 1].value;
+      const valuesOnly = recentValues.map((item) => item.value);
+      const span = Math.max(...valuesOnly) - Math.min(...valuesOnly);
+      const threshold = Math.max(0.1, span * 0.08);
+      const delta = lastValue - firstValue;
+      if (Math.abs(delta) <= threshold) return "flat";
+      return delta > 0 ? "rising" : "falling";
+    }
+
+    function aqTrendLabel(trend) {
+      if (trend === "rising") return ", rising over the last 7 days";
+      if (trend === "falling") return ", falling over the last 7 days";
+      return "";
+    }
+
+    function aqHistoryRows(columns) {
+      const current = airQualityComparisons.find((item) => item.isCurrent);
+      return columns.map((column) => {
+        const ranges = airQualityComparisons
+          .map((item) => item.rangeMetrics?.[column.key])
+          .filter((range) => range && Number.isFinite(range.min) && Number.isFinite(range.max));
+        const currentValue = current?.metrics?.[column.key];
+        if (!ranges.length || !Number.isFinite(currentValue)) return null;
+        const min = Math.min(...ranges.map((range) => range.min));
+        const max = Math.max(...ranges.map((range) => range.max));
+        const ratio = aqRangePosition(min, max, currentValue);
+        const dailyValues = dailyMetricValues(current?.windowRows || [], column.key);
+        const recentRange = recentAqValueRange(dailyValues, current.date);
+        const recentOutline = recentRange
+          ? aqRangeSegment(min, max, recentRange.min, recentRange.max)
+          : { start: 0, width: 0 };
+        const points = dailyValues
+          .map((item) => {
+            const pointRatio = aqRangePosition(min, max, item.value);
+            if (!Number.isFinite(pointRatio)) return null;
+            const ageDays = dateDistanceDays(item.date, current.date);
+            return {
+              ratio: pointRatio,
+              opacity: recentAqOpacity(ageDays),
+              date: item.date
+            };
+          })
+          .filter(Boolean);
+        return {
+          ...column,
+          min,
+          max,
+          current: currentValue,
+          ratio,
+          trend: aqTrendDirection(dailyValues, current.date),
+          recentOutline,
+          points
+        };
+      }).filter(Boolean);
+    }
+
+    function aqRangeLabel(value) {
+      return Number.isFinite(value) ? String(round(value, 1)) : "";
+    }
+
+    function drawAirComparisonList() {
+      if (!airComparisonList) return;
+      if (airQualityComparisonState === "loading") {
+        airComparisonList.innerHTML = `<p class="comparison-empty">Loading same-date air history...</p>`;
+        return;
+      }
+      if (airQualityComparisonState === "error" && !airQualityComparisons.length) {
+        airComparisonList.innerHTML = `<p class="comparison-empty">Could not load previous-year air history.</p>`;
+        return;
+      }
+      if (!airQualityComparisons.length) {
+        airComparisonList.innerHTML = `<p class="comparison-empty">Load Open-Meteo to compare this date with previous years.</p>`;
+        return;
+      }
+
+      const columns = visibleAirHistoryColumns();
+      const rows = aqHistoryRows(columns);
+      if (!rows.length) {
+        airComparisonList.innerHTML = `<p class="comparison-empty">No non-zero AQ history values for this date.</p>`;
+        return;
+      }
+
+      airComparisonList.innerHTML = rows.map((row) => `
+        <div class="aq-history-row" style="--aq-color: ${row.color}; --pos: ${(row.ratio * 100).toFixed(1)}%; --recent-outline-start: ${row.recentOutline.start.toFixed(1)}%; --recent-outline-width: ${row.recentOutline.width.toFixed(1)}%">
+          <span class="aq-history-label">${row.label}</span>
+          <span class="aq-history-value">${formatHistoryCell(row.current)}</span>
+          <span class="aq-history-unit">${row.unit}</span>
+          <span class="aq-history-range" aria-label="${row.label} range ${aqRangeLabel(row.min)} to ${aqRangeLabel(row.max)}, current ${formatHistoryCell(row.current)}${aqTrendLabel(row.trend)}">
+            <span class="aq-range-number">${aqRangeLabel(row.min)}</span>
+            <span class="aq-range-line">
+              ${row.recentOutline.width > 0 ? `<span class="aq-range-recent-outline"></span>` : ""}
+              ${row.points.map((point) => `<span class="aq-range-point" style="--point-pos: ${(point.ratio * 100).toFixed(1)}%; --point-opacity: ${point.opacity.toFixed(2)}"></span>`).join("")}
+              <span class="aq-range-marker" data-trend="${row.trend}"></span>
+            </span>
+            <span class="aq-range-number">${aqRangeLabel(row.max)}</span>
+          </span>
+        </div>
+      `).join("");
+    }
+
+    function updateReadout() {
+      const data = dataForHour(selectedHour);
+      const weatherSummary = [`Actual ${data.actual}&deg;C`, `~${data.feels}&deg;C`];
+      const airSummary = [];
+      const strongestPollen = strongestPollenAt(data);
+      selectedTime.textContent = formatHour(selectedHour);
+      selectedDateLabel.textContent = chartDateLabel();
+      if ((Number.isFinite(data.pop) && data.pop > 0) || (Number.isFinite(data.rain) && data.rain > 0)) {
+        weatherSummary.push(`rain ${Number.isFinite(data.pop) && data.pop > 0 ? `${data.pop}%` : `${data.rain.toFixed(1)} mm`}`);
+      }
+      if (Number.isFinite(data.pm2_5) && data.pm2_5 >= 10) airSummary.push(`PM2.5 ${formatConcentration(data.pm2_5)}`);
+      if (Number.isFinite(data.dust) && data.dust > 0) airSummary.push(`dust ${formatConcentration(data.dust)}`);
+      if (strongestPollen) airSummary.push(`${metricConfig.find((metric) => metric.id === strongestPollen.key)?.label || "𖡼"} ${formatPollen(strongestPollen.value)}`);
+      selectedSummary.innerHTML = `${weatherSummary.join(", ")}${airSummary.length ? ` · ${airSummary.join(", ")}` : ""}`;
+      updateLegendValues();
+      updateScrubber();
+    }
+
+    function updateScrubber() {
+      const existing = document.getElementById("scrubber");
+      if (existing) existing.remove();
+      drawScrubber();
+    }
+
+    function drawEvents() {
+      const uv = getUvEvents();
+      const rainStart = forecast.find((d) => d.rain > 0);
+      const gustPeak = forecast.reduce((best, d) => d.gust > best.gust ? d : best, forecast[0]);
+      const visibilityLow = forecast.reduce((best, d) => d.visibility < best.visibility ? d : best, forecast[0]);
+      const dustPeak = maxFinitePoint(forecast, "dust");
+      const pollenPeak = peakPollenEvent();
+      const sunEvents = selectedSunEvents();
+      const eventDate = selectedDateForGlyphs();
+      const events = [];
+      const addEvent = (event) => {
+        if (Number.isFinite(event.hour)) events.push({ ...event, order: events.length });
+      };
+
+      if (sunEvents && Number.isFinite(sunEvents.sunriseHour)) {
+        addEvent({ hour: sunEvents.sunriseHour, color: colors.actual, label: "Sunrise", value: formatAzimuth(eventDate, sunEvents.sunriseHour) });
+      }
+      if (sunEvents) {
+        const noonHour = solarNoonHour(sunEvents);
+        if (Number.isFinite(noonHour)) addEvent({ hour: noonHour, color: colors.actual, label: "Noon", value: formatAzimuth(eventDate, noonHour) });
+      }
+      if (sunEvents && Number.isFinite(sunEvents.sunsetHour)) {
+        addEvent({ hour: sunEvents.sunsetHour, color: colors.actual, label: "Sunset", value: formatAzimuth(eventDate, sunEvents.sunsetHour) });
+      }
+      if (uv.above) addEvent({ hour: uv.above.h, color: colors.uv, label: "UV", value: "≥3" });
+      if (uv.peak && uv.peak.uv > 0) addEvent({ hour: uv.peak.h, color: colors.uv, label: "UV peak", value: String(uv.peak.uv) });
+      if (uv.below) addEvent({ hour: uv.below.h, color: colors.uv, label: "UV", value: "<3" });
+      if (rainStart) addEvent({ hour: rainStart.h, color: colors.rain, label: "Rain begins", value: formatUnit(rainStart.rain, "mm") });
+      if (gustPeak && gustPeak.gust > 0) addEvent({ hour: gustPeak.h, color: colors.wind, label: "Peak gust", value: `${gustPeak.gust} ${windUnitHtml()}` });
+      if (visibilityLow && visibilityLow.visibility > 0) addEvent({ hour: visibilityLow.h, color: colors.visibility, label: "Lowest visibility", value: `${visibilityLow.visibility} km` });
+      if (dustPeak && dustPeak.dust > 0) addEvent({ hour: dustPeak.h, color: colors.dust, label: "Peak dust", value: formatConcentration(dustPeak.dust) });
+      if (pollenPeak && pollenPeak.value > 0) {
+        addEvent({
+          hour: pollenPeak.h,
+          color: colors[pollenPeak.key],
+          label: `Peak ${pollenPeak.label} 𖡼`,
+          value: formatPollen(pollenPeak.value)
+        });
+      }
+
+      events.sort((a, b) => a.hour - b.hour || a.order - b.order);
+
+      eventList.innerHTML = events.map((event) => `
+        <div class="event-row">
+          <span class="event-time">${formatHour(event.hour)}</span>
+          <span class="event-dot" style="--dot: ${event.color}"></span>
+          <span>${event.label}</span>
+          <strong>${event.value}</strong>
+        </div>
+      `).join("");
+    }
+
+    function getHourFromPointer(event) {
+      const bounds = svg.getBoundingClientRect();
+      const localX = ((event.clientX - bounds.left) / bounds.width) * layout.width;
+      const ratio = clamp((localX - layout.left) / chartWidth, 0, 1);
+      return Math.round(ratio * 24);
+    }
+
+    function setSelectedHour(hour) {
+      selectedHour = clamp(Math.round(hour), 0, 24);
+      updateReadout();
+    }
+
+    function maxFinitePoint(rows, key) {
+      return rows.reduce((best, row) => {
+        const value = row[key];
+        if (!Number.isFinite(value)) return best;
+        if (!best || value > best[key]) return row;
+        return best;
+      }, null);
+    }
+
+    function peakPollenEvent() {
+      return peakPollenForRows(forecast);
+    }
+
+    function handlePointer(event) {
+      setSelectedHour(getHourFromPointer(event));
+    }
+
+    function render() {
+      configureLayout();
+      plot.innerHTML = "";
+      clearVisibilityMask();
+      clearHistoryFadeMask();
+      clearConditionGlyphDefs();
+      clearHiddenFocusedMetric();
+      drawConditions();
+      drawGrid();
+
+      const historyFadeMaskId = createHistoryFadeMask();
+      seriesRootLayer = makeEl("g", { "data-layer": "series-root" });
+      if (historyFadeMaskId) seriesRootLayer.setAttribute("mask", `url(#${historyFadeMaskId})`);
+      plot.appendChild(seriesRootLayer);
+
+      const lowerWeatherLayer = makeEl("g", { "data-layer": "below-visibility" });
+      seriesRootLayer.appendChild(lowerWeatherLayer);
+      activeSeriesLayer = lowerWeatherLayer;
+      drawHumidity();
+      drawWind();
+      activeSeriesLayer = null;
+      applyVisibilityTreatment(lowerWeatherLayer);
+
+      drawAirQuality();
+      drawTemperature();
+      drawRain();
+      drawUv();
+      seriesRootLayer = null;
+      drawScrubber();
+      drawLegend();
+      drawEvents();
+      drawAirComparisonList();
+      updateReadout();
+      updateCurrentChip();
+      updateHighlight();
+      updateDayControls();
+    }
+
+    function updateCurrentChip() {
+      currentTemp.innerHTML = `${Math.round(currentWeather.actual)}&deg;C`;
+      currentDesc.innerHTML = `${conditionDescription(currentWeather.weatherCode)}, ~${Math.round(currentWeather.feels)}&deg;C`;
+    }
+
+    function setStatus(text) {
+      dataStatus.textContent = text;
+    }
+
+    function isoDateFromTime(time) {
+      return String(time || "").slice(0, 10);
+    }
+
+    function addDays(dateString, days) {
+      const [year, month, day] = dateString.split("-").map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day + days));
+      return date.toISOString().slice(0, 10);
+    }
+
+    function hourFromTime(time) {
+      return Number(String(time).slice(11, 13));
+    }
+
+    function dayOffsetLabel(offset) {
+      if (offset === 0) return "today";
+      if (offset === -1) return "yesterday";
+      if (offset === 1) return "tomorrow";
+      return offset < 0 ? `${Math.abs(offset)} days ago` : `${offset} days ahead`;
+    }
+
+    function selectedOpenMeteoDate(offset = selectedDayOffset) {
+      return openMeteoReferenceDate ? addDays(openMeteoReferenceDate, offset) : "";
+    }
+
+    function hasOpenMeteoDay(offset) {
+      const date = selectedOpenMeteoDate(offset);
+      if (!date) return false;
+      return openMeteoRows.filter((row) => row.date === date && row.h < 24).length >= 12;
+    }
+
+    function updateDayControls() {
+      prevDay.disabled = !hasOpenMeteoDay(selectedDayOffset - 1);
+      todayDay.disabled = !hasOpenMeteoDay(0) || selectedDayOffset === 0;
+      nextDay.disabled = !hasOpenMeteoDay(selectedDayOffset + 1);
+    }
+
+    function mapOpenMeteoRows(payload) {
+      const hourly = payload.hourly || {};
+      const times = hourly.time || [];
+      return times.map((time, index) => {
+        const wind = round(hourly.wind_speed_10m?.[index] ?? 0);
+        const gust = Math.max(round(hourly.wind_gusts_10m?.[index] ?? wind), wind);
+        const weatherCode = hourly.weather_code?.[index] ?? 3;
+        return {
+          time,
+          date: isoDateFromTime(time),
+          h: hourFromTime(time),
+          actual: round(hourly.temperature_2m?.[index]),
+          feels: round(hourly.apparent_temperature?.[index]),
+          pop: round(hourly.precipitation_probability?.[index] ?? 0),
+          rain: round(hourly.rain?.[index] ?? hourly.precipitation?.[index] ?? 0, 1),
+          wind,
+          gust,
+          humidity: round(hourly.relative_humidity_2m?.[index]),
+          visibility: round((hourly.visibility?.[index] ?? 10000) / 1000, 1),
+          uv: round(hourly.uv_index?.[index] ?? 0, 1),
+          isDay: hourly.is_day?.[index] === 1 ? true : hourly.is_day?.[index] === 0 ? false : undefined,
+          weatherCode
+        };
+      }).filter((row) => Number.isFinite(row.h));
+    }
+
+    function mapSunEvents(payload) {
+      const daily = payload.daily || {};
+      const dates = daily.time || [];
+      const sunrise = daily.sunrise || [];
+      const sunset = daily.sunset || [];
+      return new Map(dates.map((date, index) => {
+        const sunriseTime = sunrise[index] || "";
+        const sunsetTime = sunset[index] || "";
+        return [date, {
+          sunrise: sunriseTime,
+          sunset: sunsetTime,
+          sunriseHour: hourValueFromTime(sunriseTime),
+          sunsetHour: hourValueFromTime(sunsetTime),
+          solarNoonHour: Number.isFinite(hourValueFromTime(sunriseTime)) && Number.isFinite(hourValueFromTime(sunsetTime))
+            ? (hourValueFromTime(sunriseTime) + hourValueFromTime(sunsetTime)) / 2
+            : null
+        }];
+      }));
+    }
+
+    function mapAirQualityRows(payload) {
+      const hourly = payload?.hourly || {};
+      const times = hourly.time || [];
+      return times.map((time, index) => {
+        const row = { time, date: isoDateFromTime(time), h: hourFromTime(time) };
+        airQualityKeys.forEach((key) => {
+          const value = hourly[key]?.[index];
+          row[key] = Number.isFinite(value) ? round(value, 1) : null;
+        });
+        return row;
+      });
+    }
+
+    function mergeAirQualityRows(weatherRows, airPayload) {
+      if (!airPayload) return weatherRows;
+      const airRowsByTime = new Map(mapAirQualityRows(airPayload).map((row) => [row.time, row]));
+      return weatherRows.map((row) => ({
+        ...row,
+        ...(airRowsByTime.get(row.time) || {})
+      }));
+    }
+
+    function describeAirQualityAvailability(rows, airPayload, airError = "") {
+      if (airError) return "Air-quality request failed; showing weather only.";
+      if (!airPayload) return "Air quality not loaded.";
+
+      const availableKeys = airQualityKeys.filter((key) => rows.some((row) => Number.isFinite(row[key])));
+      if (!availableKeys.length) return "Air-quality endpoint returned no values for this range/location.";
+
+      const pollenAvailable = pollenKeys.some((key) => availableKeys.includes(key));
+      const pollenNote = pollenAvailable ? "𖡼 included" : "𖡼 unavailable for this range/location";
+      return `Air quality loaded: PM2.5, dust, ${pollenNote}.`;
+    }
+
+    function yearFromDate(dateString) {
+      return Number(dateString.slice(0, 4));
+    }
+
+    function sameMonthDayInYear(dateString, year) {
+      const [, month, day] = dateString.split("-").map(Number);
+      const lastDayOfMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      return `${year}-${String(month).padStart(2, "0")}-${String(Math.min(day, lastDayOfMonth)).padStart(2, "0")}`;
+    }
+
+    function airQualityHistoryParams(lat, lon, startDate, endDate = startDate) {
+      return new URLSearchParams({
+        latitude: String(lat),
+        longitude: String(lon),
+        hourly: airQualityKeys.join(","),
+        timezone: "auto",
+        start_date: startDate,
+        end_date: endDate,
+        domains: "cams_europe"
+      });
+    }
+
+    async function fetchAirQualityWindow(lat, lon, startDate, endDate, signal) {
+      const params = airQualityHistoryParams(lat, lon, startDate, endDate);
+      const response = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${params}`, { signal });
+      if (!response.ok) throw new Error(`Open-Meteo air history returned ${response.status}`);
+      const payload = await response.json();
+      return mapAirQualityRows(payload).filter((row) => row.date >= startDate && row.date <= endDate && row.h < 24);
+    }
+
+    function setAirComparisonLoading() {
+      airQualityComparisonState = "loading";
+      airQualityComparisons = [];
+      drawAirComparisonList();
+    }
+
+    function recomputeRangesWithComparisons() {
+      const comparisonRows = airQualityComparisons.flatMap((item) => item.rows || []);
+      ranges = computeRanges([...openMeteoRows, ...comparisonRows]);
+    }
+
+    async function loadAirQualityComparisons(selectedDate) {
+      if (!openMeteoLocation || !selectedDate) return;
+      const requestId = ++airQualityComparisonRequestId;
+      const selectedYear = yearFromDate(selectedDate);
+      const currentSummary = summarizeAirQualityWindow(selectedYear, selectedDate, openMeteoRows, true);
+      const years = Array.from({ length: comparisonYearsBack }, (_, index) => selectedYear - index - 1)
+        .filter((year) => year >= 2013);
+
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 15000);
+      try {
+        const results = await Promise.allSettled(years.map(async (year) => {
+          const endDate = sameMonthDayInYear(selectedDate, year);
+          const startDate = addDays(endDate, -29);
+          const rows = await fetchAirQualityWindow(openMeteoLocation.lat, openMeteoLocation.lon, startDate, endDate, controller.signal);
+          return summarizeAirQualityWindow(year, endDate, rows, false);
+        }));
+        if (requestId !== airQualityComparisonRequestId) return;
+
+        const previous = results
+          .filter((result) => result.status === "fulfilled" && result.value.rows.length)
+          .map((result) => result.value);
+        airQualityComparisons = [currentSummary, ...previous];
+        airQualityComparisonState = previous.length ? "ready" : "error";
+        recomputeRangesWithComparisons();
+        render();
+      } catch (error) {
+        console.warn(error);
+        if (requestId !== airQualityComparisonRequestId) return;
+        airQualityComparisons = [currentSummary];
+        airQualityComparisonState = "error";
+        recomputeRangesWithComparisons();
+        render();
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
+
+    function applySelectedOpenMeteoDay() {
+      const selectedDate = selectedOpenMeteoDate();
+      const nextDate = addDays(selectedDate, 1);
+      const dayRows = openMeteoRows.filter((row) => row.date === selectedDate && row.h < 24).slice(0, 24);
+      const nextMidnight = openMeteoRows.find((row) => row.date === nextDate && row.h === 0);
+
+      if (dayRows.length < 12) throw new Error(`Open-Meteo did not return enough rows for ${selectedDate}.`);
+      forecast = dayRows.map((row) => ({ ...row }));
+      forecast.push(nextMidnight ? { ...nextMidnight, h: 24 } : { ...forecast[forecast.length - 1], h: 24 });
+      ranges = computeRanges(openMeteoRows);
+
+      selectedHour = clamp(selectedHour, 0, 24);
+      const selectedWeather = forecast.find((row) => row.h === selectedHour) || forecast[0];
+      const chipWeather = selectedDayOffset === 0
+        ? {
+            actual: round(openMeteoCurrent.temperature_2m ?? selectedWeather.actual),
+            feels: round(openMeteoCurrent.apparent_temperature ?? selectedWeather.feels),
+            weatherCode: openMeteoCurrent.weather_code ?? selectedWeather.weatherCode
+          }
+        : selectedWeather;
+      currentWeather = {
+        actual: chipWeather.actual,
+        feels: chipWeather.feels,
+        weatherCode: chipWeather.weatherCode,
+        description: conditionDescription(chipWeather.weatherCode)
+      };
+
+      setStatus(`Live Open-Meteo data for ${openMeteoLocation.lat.toFixed(4)}, ${openMeteoLocation.lon.toFixed(4)}. Showing ${dayOffsetLabel(selectedDayOffset)} (${selectedDate}). Normalized against returned hourly range. ${openMeteoAirQualityNote}`);
+      setAirComparisonLoading();
+      render();
+      loadAirQualityComparisons(selectedDate);
+    }
+
+    function setSelectedDayOffset(offset) {
+      if (!hasOpenMeteoDay(offset)) return;
+      selectedDayOffset = offset;
+      applySelectedOpenMeteoDay();
+    }
+
+    function applyOpenMeteo(payload, lat, lon, airPayload = null, airError = "") {
+      const rows = mergeAirQualityRows(mapOpenMeteoRows(payload), airPayload);
+      if (!rows.length) throw new Error("Open-Meteo returned no hourly rows.");
+
+      openMeteoRows = rows;
+      openMeteoCurrent = payload.current || {};
+      openMeteoCurrentTime = openMeteoCurrent.time || rows.find((row) => row.date === isoDateFromTime(new Date().toISOString()))?.time || rows[0].time;
+      openMeteoReferenceDate = isoDateFromTime(openMeteoCurrentTime);
+      openMeteoLocation = { lat, lon };
+      openMeteoAirQualityNote = describeAirQualityAvailability(rows, airPayload, airError);
+      sunEventsByDate = mapSunEvents(payload);
+      selectedDayOffset = 0;
+      selectedHour = clamp(Number.isFinite(hourFromTime(openMeteoCurrentTime)) ? hourFromTime(openMeteoCurrentTime) : selectedHour, 0, 24);
+      localStorage.setItem("weatherLat", String(lat));
+      localStorage.setItem("weatherLon", String(lon));
+      applySelectedOpenMeteoDay();
+    }
+
+    async function loadOpenMeteo() {
+      const lat = Number(latitudeInput.value);
+      const lon = Number(longitudeInput.value);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        setStatus("Enter valid latitude and longitude.");
+        return;
+      }
+
+      loadWeather.disabled = true;
+      setStatus("Loading Open-Meteo weather and air-quality history...");
+      const hourly = [
+        "temperature_2m",
+        "apparent_temperature",
+        "precipitation_probability",
+        "precipitation",
+        "rain",
+        "relative_humidity_2m",
+        "weather_code",
+        "is_day",
+        "visibility",
+        "wind_speed_10m",
+        "wind_gusts_10m",
+        "uv_index"
+      ].join(",");
+      const current = [
+        "temperature_2m",
+        "apparent_temperature",
+        "weather_code",
+        "wind_speed_10m",
+        "wind_gusts_10m",
+        "relative_humidity_2m",
+        "precipitation",
+        "rain"
+      ].join(",");
+      const airHourly = airQualityKeys.join(",");
+      const params = new URLSearchParams({
+        latitude: String(lat),
+        longitude: String(lon),
+        hourly,
+        current,
+        daily: "sunrise,sunset",
+        timezone: "auto",
+        past_days: "30",
+        forecast_days: "4",
+        temperature_unit: "celsius",
+        wind_speed_unit: "kmh",
+        precipitation_unit: "mm"
+      });
+      const airParams = new URLSearchParams({
+        latitude: String(lat),
+        longitude: String(lon),
+        hourly: airHourly,
+        current: airHourly,
+        timezone: "auto",
+        past_days: "30",
+        forecast_days: "4",
+        domains: "cams_europe"
+      });
+
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+      try {
+        const weatherRequest = fetch(`https://api.open-meteo.com/v1/forecast?${params}`, { signal: controller.signal }).then((response) => {
+          if (!response.ok) throw new Error(`Open-Meteo weather returned ${response.status}`);
+          return response.json();
+        });
+        const airRequest = fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${airParams}`, { signal: controller.signal }).then((response) => {
+          if (!response.ok) throw new Error(`Open-Meteo air quality returned ${response.status}`);
+          return response.json();
+        });
+        const [weatherResult, airResult] = await Promise.allSettled([weatherRequest, airRequest]);
+        if (weatherResult.status !== "fulfilled") throw weatherResult.reason;
+        const airPayload = airResult.status === "fulfilled" ? airResult.value : null;
+        const airError = airResult.status === "rejected" ? airResult.reason?.message || "Air-quality request failed" : "";
+        applyOpenMeteo(weatherResult.value, lat, lon, airPayload, airError);
+      } catch (error) {
+        console.warn(error);
+        forecast = sampleForecast.map((d) => ({ ...d }));
+        ranges = computeRanges(sampleForecast);
+        openMeteoRows = [];
+        openMeteoCurrent = {};
+        openMeteoCurrentTime = "";
+        openMeteoReferenceDate = "";
+        openMeteoLocation = null;
+        openMeteoAirQualityNote = "Air quality not loaded.";
+        sunEventsByDate = new Map();
+        airQualityComparisonRequestId += 1;
+        airQualityComparisonState = "idle";
+        airQualityComparisons = [];
+        selectedDayOffset = 0;
+        currentWeather = { actual: 23, feels: 23, weatherCode: 2, description: "sample conditions" };
+        selectedHour = 18;
+        setStatus("Could not load Open-Meteo. Showing sample data.");
+        render();
+      } finally {
+        window.clearTimeout(timeoutId);
+        loadWeather.disabled = false;
+      }
+    }
+
+    function restoreSavedCoordinates() {
+      const savedLat = localStorage.getItem("weatherLat");
+      const savedLon = localStorage.getItem("weatherLon");
+      if (savedLat) latitudeInput.value = savedLat;
+      if (savedLon) longitudeInput.value = savedLon;
+    }
+
+    chartWrap.addEventListener("pointerdown", (event) => {
+      setScrubberVisible(true);
+      chartWrap.setPointerCapture(event.pointerId);
+      handlePointer(event);
+    });
+    chartWrap.addEventListener("pointermove", (event) => {
+      if (event.buttons) {
+        setScrubberVisible(true);
+        handlePointer(event);
+      }
+    });
+    chartWrap.addEventListener("pointerup", (event) => {
+      if (chartWrap.hasPointerCapture(event.pointerId)) chartWrap.releasePointerCapture(event.pointerId);
+      setScrubberVisible(false);
+    });
+    chartWrap.addEventListener("pointercancel", (event) => {
+      if (chartWrap.hasPointerCapture(event.pointerId)) chartWrap.releasePointerCapture(event.pointerId);
+      setScrubberVisible(false);
+    });
+    chartWrap.addEventListener("lostpointercapture", () => setScrubberVisible(false));
+
+    prevDay.addEventListener("click", () => setSelectedDayOffset(selectedDayOffset - 1));
+    todayDay.addEventListener("click", () => setSelectedDayOffset(0));
+    nextDay.addEventListener("click", () => setSelectedDayOffset(selectedDayOffset + 1));
+    dataForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      loadOpenMeteo();
+    });
+    legend.addEventListener("pointerover", (event) => {
+      const metric = legendMetricFromEvent(event);
+      if (!metric || activeMetric) return;
+      if (suppressedHoverMetric && suppressedHoverMetric !== metric) suppressedHoverMetric = null;
+      if (suppressedHoverMetric === metric) return;
+      setHoverFocus(metric);
+    });
+    legend.addEventListener("pointermove", (event) => {
+      const metric = legendMetricFromEvent(event);
+      if (!metric || activeMetric) return;
+      if (suppressedHoverMetric && suppressedHoverMetric !== metric) suppressedHoverMetric = null;
+      if (suppressedHoverMetric === metric) return;
+      setHoverFocus(metric);
+    });
+    legend.addEventListener("pointerleave", () => {
+      suppressedHoverMetric = null;
+      setHoverFocus(null);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowLeft") setSelectedHour(selectedHour - 1);
+      if (event.key === "ArrowRight") setSelectedHour(selectedHour + 1);
+      if (event.key === "Escape") {
+        activeMetric = null;
+        hoverMetric = null;
+        suppressedHoverMetric = null;
+        render();
+      }
+    });
+    window.addEventListener("resize", () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(render, 80);
+    });
+
+    restoreSavedCoordinates();
+    render();
+    loadOpenMeteo();
+  </script>
+</body>
+</html>
