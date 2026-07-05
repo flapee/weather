@@ -400,7 +400,7 @@
     .chart-wrap {
       position: relative;
       padding: 10px 0 6px;
-      touch-action: none;
+      touch-action: pan-y;
       user-select: none;
     }
 
@@ -1144,6 +1144,10 @@
     let hoverMetric = null;
     let suppressedHoverMetric = null;
     let scrubberVisible = false;
+    let chartGesture = null;
+    let scrubberHideTimer = null;
+    const scrubberGestureThreshold = 8;
+    const scrubberTapVisibleMs = 650;
     let currentWeather = {
       actual: 23,
       feels: 23,
@@ -3550,6 +3554,32 @@
       setSelectedHour(getHourFromPointer(event));
     }
 
+    function clearScrubberHideTimer() {
+      if (!scrubberHideTimer) return;
+      window.clearTimeout(scrubberHideTimer);
+      scrubberHideTimer = null;
+    }
+
+    function scheduleScrubberHide() {
+      clearScrubberHideTimer();
+      scrubberHideTimer = window.setTimeout(() => {
+        scrubberHideTimer = null;
+        setScrubberVisible(false);
+      }, scrubberTapVisibleMs);
+    }
+
+    function releaseChartPointer(event) {
+      if (chartWrap.hasPointerCapture(event.pointerId)) chartWrap.releasePointerCapture(event.pointerId);
+    }
+
+    function activateChartScrub(event) {
+      clearScrubberHideTimer();
+      if (!chartWrap.hasPointerCapture(event.pointerId)) chartWrap.setPointerCapture(event.pointerId);
+      if (chartGesture && chartGesture.pointerId === event.pointerId) chartGesture.active = true;
+      setScrubberVisible(true);
+      handlePointer(event);
+    }
+
     function render() {
       configureLayout();
       plot.innerHTML = "";
@@ -3961,25 +3991,71 @@
     }
 
     chartWrap.addEventListener("pointerdown", (event) => {
-      setScrubberVisible(true);
-      chartWrap.setPointerCapture(event.pointerId);
-      handlePointer(event);
+      if (event.isPrimary === false) return;
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      clearScrubberHideTimer();
+
+      chartGesture = {
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+        startX: event.clientX,
+        startY: event.clientY,
+        active: event.pointerType === "mouse"
+      };
+
+      if (event.pointerType === "mouse") activateChartScrub(event);
     });
+
     chartWrap.addEventListener("pointermove", (event) => {
-      if (event.buttons) {
+      if (event.pointerType === "mouse") {
+        if (event.buttons & 1) activateChartScrub(event);
+        return;
+      }
+
+      if (!chartGesture || chartGesture.pointerId !== event.pointerId) return;
+
+      const dx = event.clientX - chartGesture.startX;
+      const dy = event.clientY - chartGesture.startY;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+
+      if (!chartGesture.active) {
+        if (Math.max(absX, absY) < scrubberGestureThreshold) return;
+        if (absY > absX) {
+          chartGesture = null;
+          return;
+        }
+      }
+
+      activateChartScrub(event);
+    });
+
+    chartWrap.addEventListener("pointerup", (event) => {
+      const wasChartGesture = chartGesture && chartGesture.pointerId === event.pointerId;
+      const wasActiveScrub = wasChartGesture && chartGesture.active;
+
+      if (wasChartGesture && !wasActiveScrub && event.pointerType !== "mouse") {
         setScrubberVisible(true);
         handlePointer(event);
+        scheduleScrubberHide();
+      } else {
+        setScrubberVisible(false);
       }
+
+      releaseChartPointer(event);
+      if (wasChartGesture) chartGesture = null;
     });
-    chartWrap.addEventListener("pointerup", (event) => {
-      if (chartWrap.hasPointerCapture(event.pointerId)) chartWrap.releasePointerCapture(event.pointerId);
-      setScrubberVisible(false);
-    });
+
     chartWrap.addEventListener("pointercancel", (event) => {
-      if (chartWrap.hasPointerCapture(event.pointerId)) chartWrap.releasePointerCapture(event.pointerId);
+      releaseChartPointer(event);
+      if (chartGesture && chartGesture.pointerId === event.pointerId) chartGesture = null;
       setScrubberVisible(false);
     });
-    chartWrap.addEventListener("lostpointercapture", () => setScrubberVisible(false));
+
+    chartWrap.addEventListener("lostpointercapture", (event) => {
+      if (chartGesture && chartGesture.pointerId === event.pointerId) chartGesture = null;
+      setScrubberVisible(false);
+    });
 
     prevDay.addEventListener("click", () => setSelectedDayOffset(selectedDayOffset - 1));
     todayDay.addEventListener("click", () => setSelectedDayOffset(0));
