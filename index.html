@@ -1232,6 +1232,7 @@
     const selectedSummary = document.getElementById("selectedSummary");
     const eventList = document.getElementById("eventList");
     const chartDetails = document.querySelector(".details");
+    const chartPanel = document.querySelector(".chart-panel");
     const trendPanel = document.querySelector(".trend-panel");
     const eventPanel = eventList.closest(".info-panel");
     const chartWrap = document.getElementById("chartWrap");
@@ -1273,6 +1274,8 @@
     let activeSeriesLayer = null;
     let seriesRootLayer = null;
     let resizeTimer = null;
+    let viewportWasLandscape = isLandscapeViewport();
+    let pendingLandscapeChartScroll = false;
     let hoverMetric = null;
     let suppressedHoverMetric = null;
     let scrubberVisible = false;
@@ -1323,6 +1326,45 @@
       const wrapRight = Number.parseFloat(wrapStyle.paddingRight) || 0;
       legend.style.setProperty("--legend-left", `${wrapLeft + layout.left}px`);
       legend.style.setProperty("--legend-right", `${wrapRight + layout.right}px`);
+    }
+
+    function isLandscapeViewport() {
+      const visualViewport = window.visualViewport;
+      const width = visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0;
+      const height = visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+      return width > height || window.matchMedia?.("(orientation: landscape)")?.matches || false;
+    }
+
+    function scrollChartTopToViewport() {
+      if (!chartPanel || chartScrollLocked) return;
+      const viewportOffset = window.visualViewport?.offsetTop || 0;
+      const rect = chartPanel.getBoundingClientRect();
+      const currentScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+      const targetTop = Math.max(0, Math.round(currentScrollY + rect.top - viewportOffset));
+      window.scrollTo({ top: targetTop, left: window.scrollX || 0, behavior: "auto" });
+    }
+
+    function scheduleChartTopScroll() {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(scrollChartTopToViewport);
+      });
+    }
+
+    function updateLandscapeScrollIntent() {
+      const isLandscape = isLandscapeViewport();
+      if (isLandscape && !viewportWasLandscape) pendingLandscapeChartScroll = true;
+      viewportWasLandscape = isLandscape;
+    }
+
+    function handleViewportResize() {
+      updateLandscapeScrollIntent();
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        render();
+        const shouldScrollToChart = pendingLandscapeChartScroll && isLandscapeViewport();
+        pendingLandscapeChartScroll = false;
+        if (shouldScrollToChart) scheduleChartTopScroll();
+      }, 80);
     }
 
     function clamp(value, min, max) {
@@ -1775,7 +1817,7 @@
         }));
       });
       if (isWeekView()) {
-        const startDate = selectedOpenMeteoDate(0);
+        const startDate = selectedOpenMeteoDate();
         for (let day = 0; day <= 7; day += 1) {
           const hour = day * 24;
           const xx = x(hour);
@@ -4784,9 +4826,9 @@
         render();
       }
     });
-    window.addEventListener("resize", () => {
-      window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(render, 80);
+    window.addEventListener("resize", handleViewportResize);
+    window.addEventListener("orientationchange", () => {
+      window.setTimeout(handleViewportResize, 0);
     });
 
     restoreSavedCoordinates();
