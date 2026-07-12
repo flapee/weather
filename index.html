@@ -1629,6 +1629,7 @@
       const defs = svg.querySelector("defs");
       const existing = document.getElementById(id);
       if (existing) existing.remove();
+      if (!points.length) return;
       const gradient = makeEl("linearGradient", {
         id,
         gradientUnits: "userSpaceOnUse",
@@ -1647,15 +1648,20 @@
     }
 
     function drawTempGradientLine(group, points, key, width, opacity = 1) {
+      const drawablePoints = points.filter((d) => Number.isFinite(d[key]));
+      if (drawablePoints.length < 2) return;
       const gradientId = `tempGradient-${key}`;
-      setTempGradient(gradientId, points, key);
-      group.appendChild(makeEl("path", {
-        d: pathFrom(points, key),
-        class: "line",
-        stroke: `url(#${gradientId})`,
-        "stroke-width": width,
-        opacity
-      }));
+      setTempGradient(gradientId, drawablePoints, key);
+      consecutiveRuns(drawablePoints).forEach((run) => {
+        if (run.length < 2) return;
+        group.appendChild(makeEl("path", {
+          d: pathFrom(run, key),
+          class: "line",
+          stroke: `url(#${gradientId})`,
+          "stroke-width": width,
+          opacity
+        }));
+      });
     }
 
     function areaToBottom(points, key) {
@@ -1852,7 +1858,7 @@
             class: "axis-label",
             "text-anchor": "middle"
           });
-          label.textContent = formatWeekdayShort(addDays(startDate, day));
+          label.textContent = formatWeekAxisDayLabel(addDays(startDate, day));
           group.appendChild(label);
         }
         plot.appendChild(group);
@@ -3564,6 +3570,32 @@
       }).format(date);
     }
 
+    function ordinalSuffix(day) {
+      const mod100 = day % 100;
+      if (mod100 >= 11 && mod100 <= 13) return "th";
+      if (day % 10 === 1) return "st";
+      if (day % 10 === 2) return "nd";
+      if (day % 10 === 3) return "rd";
+      return "th";
+    }
+
+    function formatDayOfMonthOrdinal(dateString) {
+      if (!dateString) return "";
+      const day = Number(dateString.split("-")[2]);
+      return Number.isFinite(day) ? `${day}${ordinalSuffix(day)}` : "";
+    }
+
+    function formatWeekAxisDayLabel(dateString) {
+      if (!dateString) return "";
+      const weekday = formatWeekdayShort(dateString);
+      if (weekday !== "Sun") return weekday;
+      const offset = openMeteoReferenceDate ? daysBetween(openMeteoReferenceDate, dateString) : null;
+      if (offset === -1) return "Yesterday";
+      if (offset === 0) return "Today";
+      if (offset === 1) return "Tmrw";
+      return formatDayOfMonthOrdinal(dateString) || formatWeekdayShort(dateString);
+    }
+
     function formatCompactDate(dateString) {
       if (!dateString) return "";
       const [year, month, day] = dateString.split("-").map(Number);
@@ -4185,17 +4217,32 @@
       return openMeteoReferenceDate ? addDays(openMeteoReferenceDate, offset) : "";
     }
 
+    function openMeteoWeatherRowsForDate(date) {
+      if (!date) return [];
+      return openMeteoRows.filter((row) => (
+        row.date === date
+        && row.h >= 0
+        && row.h < 24
+        && Number.isFinite(row.actual)
+        && Number.isFinite(row.feels)
+      ));
+    }
+
+    function hasOpenMeteoDate(date) {
+      const rows = openMeteoWeatherRowsForDate(date);
+      if (!rows.length) return false;
+      const hours = rows.map((row) => row.h);
+      return rows.length >= 12 && Math.min(...hours) <= 3 && Math.max(...hours) >= 20;
+    }
+
     function hasOpenMeteoDay(offset) {
-      const date = selectedOpenMeteoDate(offset);
-      if (!date) return false;
-      return openMeteoRows.filter((row) => row.date === date && row.h < 24).length >= 12;
+      return hasOpenMeteoDate(selectedOpenMeteoDate(offset));
     }
 
     function hasOpenMeteoWeek(offset = selectedDayOffset) {
       const startDate = selectedOpenMeteoDate(offset);
       if (!startDate) return false;
-      const endDate = addDays(startDate, 6);
-      return openMeteoRows.filter((row) => row.date >= startDate && row.date <= endDate && row.h < 24).length >= 7 * 12;
+      return Array.from({ length: 7 }, (_, day) => addDays(startDate, day)).every(hasOpenMeteoDate);
     }
 
     function updateDayControls() {
@@ -4422,8 +4469,6 @@
       const nextMidnight = openMeteoRows.find((row) => row.date === nextDate && row.h === 0);
       if (nextMidnight) {
         weekRows.push({ ...nextMidnight, h: 24 * 7 });
-      } else if (weekRows.length) {
-        weekRows.push({ ...weekRows[weekRows.length - 1], h: 24 * 7 });
       }
 
       forecast = weekRows;
