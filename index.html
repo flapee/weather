@@ -3377,7 +3377,7 @@
 
     function formatSelectedHour(hour) {
       if (!isWeekView()) return formatHour(hour);
-      const startDate = selectedOpenMeteoDate(0);
+      const startDate = selectedOpenMeteoDate();
       if (!startDate) return formatHour(hourWithinDay(hour));
       const dayIndex = Math.min(6, Math.max(0, Math.floor(hour / 24)));
       return `${formatWeekdayShort(addDays(startDate, dayIndex))} ${formatHour(hourWithinDay(hour))}`;
@@ -3427,7 +3427,7 @@
     }
 
     function formatWeekRangeLabel() {
-      const startDate = selectedOpenMeteoDate(0);
+      const startDate = selectedOpenMeteoDate();
       if (!startDate) return "7 days";
       return `7 days · ${formatCompactDate(startDate)}-${formatCompactDate(addDays(startDate, 6))}`;
     }
@@ -4042,17 +4042,17 @@
       return openMeteoRows.filter((row) => row.date === date && row.h < 24).length >= 12;
     }
 
-    function hasOpenMeteoWeek() {
-      const startDate = selectedOpenMeteoDate(0);
+    function hasOpenMeteoWeek(offset = selectedDayOffset) {
+      const startDate = selectedOpenMeteoDate(offset);
       if (!startDate) return false;
       const endDate = addDays(startDate, 6);
       return openMeteoRows.filter((row) => row.date >= startDate && row.date <= endDate && row.h < 24).length >= 7 * 12;
     }
 
     function updateDayControls() {
-      prevDay.disabled = !hasOpenMeteoDay(selectedDayOffset - 1);
+      prevDay.disabled = isWeekView() ? !hasOpenMeteoWeek(selectedDayOffset - 1) : !hasOpenMeteoDay(selectedDayOffset - 1);
       todayDay.disabled = selectedDayOffset === 0 && !isWeekView() ? !hasOpenMeteoWeek() : !hasOpenMeteoDay(0);
-      nextDay.disabled = !hasOpenMeteoDay(selectedDayOffset + 1);
+      nextDay.disabled = isWeekView() ? !hasOpenMeteoWeek(selectedDayOffset + 1) : !hasOpenMeteoDay(selectedDayOffset + 1);
     }
 
     function mapOpenMeteoRows(payload) {
@@ -4253,16 +4253,17 @@
       loadAirQualityComparisons(selectedDate);
     }
 
-    function applyTodayWeekView() {
-      if (!hasOpenMeteoWeek()) return false;
+    function applyWeekView(offset = selectedDayOffset, options = {}) {
+      if (!hasOpenMeteoWeek(offset)) return false;
 
+      const previousHour = selectedHour;
       chartMode = "week";
-      selectedDayOffset = 0;
+      selectedDayOffset = offset;
       activeMetric = null;
       hoverMetric = null;
       suppressedHoverMetric = null;
 
-      const startDate = selectedOpenMeteoDate(0);
+      const startDate = selectedOpenMeteoDate();
       const endDate = addDays(startDate, 6);
       const nextDate = addDays(startDate, 7);
       const weekRows = openMeteoRows
@@ -4279,14 +4280,18 @@
       forecast = weekRows;
       ranges = computeRanges(openMeteoRows);
       const currentHour = hourValueFromTime(openMeteoCurrentTime);
-      selectedHour = clamp(Number.isFinite(currentHour) ? currentHour : 0, 0, chartDomainHours());
+      const shouldUseCurrentHour = options.preserveSelectedHour === false && selectedDayOffset === 0 && Number.isFinite(currentHour);
+      selectedHour = clamp(shouldUseCurrentHour ? currentHour : previousHour, 0, chartDomainHours());
 
       const selectedWeather = dataForHour(selectedHour);
-      const chipWeather = {
-        actual: round(openMeteoCurrent.temperature_2m ?? selectedWeather.actual),
-        feels: round(openMeteoCurrent.apparent_temperature ?? selectedWeather.feels),
-        weatherCode: openMeteoCurrent.weather_code ?? selectedWeather.weatherCode
-      };
+      const useCurrentWeather = selectedDayOffset === 0 && Number.isFinite(currentHour) && Math.abs(selectedHour - currentHour) < 0.51;
+      const chipWeather = useCurrentWeather
+        ? {
+            actual: round(openMeteoCurrent.temperature_2m ?? selectedWeather.actual),
+            feels: round(openMeteoCurrent.apparent_temperature ?? selectedWeather.feels),
+            weatherCode: openMeteoCurrent.weather_code ?? selectedWeather.weatherCode
+          }
+        : selectedWeather;
       currentWeather = {
         actual: chipWeather.actual,
         feels: chipWeather.feels,
@@ -4302,7 +4307,14 @@
       return true;
     }
 
-    function setSelectedDayOffset(offset) {
+    function applyTodayWeekView() {
+      return applyWeekView(0, { preserveSelectedHour: false });
+    }
+
+    function setSelectedDayOffset(offset, options = {}) {
+      if ((options.mode || chartMode) === "week") {
+        return applyWeekView(offset, { preserveSelectedHour: true });
+      }
       if (!hasOpenMeteoDay(offset)) return false;
       selectedDayOffset = offset;
       applySelectedOpenMeteoDay();
@@ -4525,14 +4537,20 @@
       const currentX = Math.abs(points[0].x - points[1].x);
       const currentY = Math.abs(points[0].y - points[1].y);
       const horizontalPinch = chartPinchGesture.initialX - currentX;
+      const horizontalZoom = Math.abs(horizontalPinch);
       const verticalChange = Math.abs(chartPinchGesture.initialY - currentY);
       const startedOnHorizontalAxis = chartPinchGesture.initialX > chartPinchGesture.initialY * chartPinchAxisRatio;
+      const zoomedOnXAxis = horizontalZoom >= chartPinchReturnThreshold && horizontalZoom > verticalChange * chartPinchAxisRatio;
       const pinchedInOnXAxis = horizontalPinch >= chartPinchReturnThreshold && horizontalPinch > verticalChange * chartPinchAxisRatio;
 
-      if (isWeekView() && !chartPinchGesture.triggered && startedOnHorizontalAxis && pinchedInOnXAxis) {
+      if (!chartPinchGesture.triggered && !isWeekView() && startedOnHorizontalAxis && zoomedOnXAxis) {
         chartPinchGesture.triggered = true;
         chartPinchPointers.clear();
-        setSelectedDayOffset(0);
+        applyWeekView(selectedDayOffset, { preserveSelectedHour: true });
+      } else if (!chartPinchGesture.triggered && isWeekView() && startedOnHorizontalAxis && pinchedInOnXAxis) {
+        chartPinchGesture.triggered = true;
+        chartPinchPointers.clear();
+        setSelectedDayOffset(0, { mode: "day" });
       }
       return true;
     }
@@ -4629,7 +4647,7 @@
     prevDay.addEventListener("click", () => setSelectedDayOffset(selectedDayOffset - 1));
     todayDay.addEventListener("click", () => {
       if (isWeekView()) {
-        setSelectedDayOffset(0);
+        setSelectedDayOffset(0, { mode: "day" });
         return;
       }
       if (selectedDayOffset !== 0) {
