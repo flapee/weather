@@ -50,6 +50,7 @@
     .weather-view {
       display: grid;
       gap: 12px;
+      touch-action: pan-y;
     }
 
     .topbar {
@@ -459,6 +460,11 @@
       fill: var(--uv);
       font-size: 10px;
       font-weight: 850;
+    }
+
+    .axis-label.uv-axis-crossing {
+      dominant-baseline: central;
+      font-size: 12px;
     }
 
     .axis-label.low {
@@ -1145,9 +1151,13 @@
     let suppressedHoverMetric = null;
     let scrubberVisible = false;
     let chartGesture = null;
+    let pageSwipeGesture = null;
     let scrubberHideTimer = null;
     const scrubberGestureThreshold = 8;
     const scrubberTapVisibleMs = 650;
+    const pageSwipeGestureThreshold = 72;
+    const chartSwipeExtraThreshold = 40;
+    const pageSwipeAxisRatio = 1.45;
     let currentWeather = {
       actual: 23,
       feels: 23,
@@ -2197,11 +2207,12 @@
         }
       });
 
-      forecast.filter((d) => d.rain > 0).forEach((d) => {
+      forecast.filter((d) => d.rain > 0 && d.h >= 0 && d.h < 24).forEach((d) => {
         const barWidth = layout.width < 520 ? 8 : 16;
         const bottom = y("rain", d.rain);
+        const barCenter = x(d.h + 0.5);
         group.appendChild(makeEl("rect", {
-          x: x(d.h) - barWidth / 2,
+          x: barCenter - barWidth / 2,
           y: layout.top,
           width: barWidth,
           height: bottom - layout.top,
@@ -2454,16 +2465,17 @@
       const events = getUvEvents();
       const crossingsAreTight = events.above && events.below && Math.abs(events.below.h - events.above.h) < 2;
       const markers = [
-        { type: "above", data: events.above, label: "^", opacity: 0.58 },
+        { type: "above", data: events.above, label: ">", opacity: 0.58 },
         { type: "peak", data: events.peak, label: events.peak ? String(events.peak.uv) : "", opacity: 0.8 },
-        { type: "below", data: events.below, label: "v", opacity: 0.58 }
+        { type: "below", data: events.below, label: "<", opacity: 0.58 }
       ].filter((item) => item.data && (!crossingsAreTight || item.type === "peak"));
 
       markers.forEach((item) => {
+        const isCrossing = item.type === "above" || item.type === "below";
         const marker = makeEl("text", {
           x: x(item.data.h),
-          y: layout.top + chartHeight + 18,
-          class: "axis-label uv-axis-mark",
+          y: isCrossing ? layout.top + chartHeight : layout.top + chartHeight + 18,
+          class: `axis-label uv-axis-mark${isCrossing ? " uv-axis-crossing" : ""}`,
           "text-anchor": "middle",
           opacity: item.opacity
         });
@@ -3167,6 +3179,16 @@
       }).format(date);
     }
 
+    function formatWeekday(dateString) {
+      if (!dateString) return "";
+      const [year, month, day] = dateString.split("-").map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      return new Intl.DateTimeFormat("en", {
+        weekday: "long",
+        timeZone: "UTC"
+      }).format(date);
+    }
+
     function chartDateLabel() {
       const selectedDate = selectedOpenMeteoDate();
       if (!selectedDate) return "Sample day";
@@ -3649,7 +3671,7 @@
       if (offset === 0) return "today";
       if (offset === -1) return "yesterday";
       if (offset === 1) return "tomorrow";
-      return offset < 0 ? `${Math.abs(offset)} days ago` : `${offset} days ahead`;
+      return formatWeekday(selectedOpenMeteoDate(offset)) || (offset < 0 ? "Previous day" : "Next day");
     }
 
     function selectedOpenMeteoDate(offset = selectedDayOffset) {
@@ -3860,9 +3882,10 @@
     }
 
     function setSelectedDayOffset(offset) {
-      if (!hasOpenMeteoDay(offset)) return;
+      if (!hasOpenMeteoDay(offset)) return false;
       selectedDayOffset = offset;
       applySelectedOpenMeteoDay();
+      return true;
     }
 
     function applyOpenMeteo(payload, lat, lon, airPayload = null, airError = "") {
@@ -3989,6 +4012,61 @@
       if (savedLat) latitudeInput.value = savedLat;
       if (savedLon) longitudeInput.value = savedLon;
     }
+
+    function isPageSwipeIgnoredTarget(target) {
+      return Boolean(target.closest?.("button, input, textarea, select, label, a, [role='button'], [contenteditable='true']"));
+    }
+
+    function pageSwipeThreshold(startedOnChart) {
+      const viewportThreshold = Math.max(pageSwipeGestureThreshold, window.innerWidth * 0.12);
+      return Math.min(128, viewportThreshold) + (startedOnChart ? chartSwipeExtraThreshold : 0);
+    }
+
+    function beginPageSwipe(event) {
+      if (event.isPrimary === false || event.pointerType === "mouse") return;
+      if (isPageSwipeIgnoredTarget(event.target)) return;
+      pageSwipeGesture = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startedOnChart: Boolean(event.target.closest?.(".chart-wrap")),
+        cancelled: false
+      };
+    }
+
+    function updatePageSwipe(event) {
+      if (!pageSwipeGesture || pageSwipeGesture.pointerId !== event.pointerId) return;
+      const dx = event.clientX - pageSwipeGesture.startX;
+      const dy = event.clientY - pageSwipeGesture.startY;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      if (Math.max(absX, absY) < scrubberGestureThreshold) return;
+      if (absY > absX * pageSwipeAxisRatio) pageSwipeGesture.cancelled = true;
+    }
+
+    function finishPageSwipe(event) {
+      if (!pageSwipeGesture || pageSwipeGesture.pointerId !== event.pointerId) return;
+      const gesture = pageSwipeGesture;
+      pageSwipeGesture = null;
+
+      const dx = event.clientX - gesture.startX;
+      const dy = event.clientY - gesture.startY;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      if (gesture.cancelled || absX < pageSwipeThreshold(gesture.startedOnChart) || absX < absY * pageSwipeAxisRatio) return;
+
+      setSelectedDayOffset(selectedDayOffset + (dx < 0 ? 1 : -1));
+    }
+
+    function cancelPageSwipe(event) {
+      if (!pageSwipeGesture || pageSwipeGesture.pointerId !== event.pointerId) return;
+      pageSwipeGesture = null;
+    }
+
+    document.addEventListener("pointerdown", beginPageSwipe);
+    document.addEventListener("pointermove", updatePageSwipe);
+    document.addEventListener("pointerup", finishPageSwipe);
+    document.addEventListener("pointercancel", cancelPageSwipe);
 
     chartWrap.addEventListener("pointerdown", (event) => {
       if (event.isPrimary === false) return;
