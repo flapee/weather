@@ -942,6 +942,91 @@
         padding: 12px;
       }
     }
+
+    @media (orientation: landscape) and (min-width: 700px) {
+      .weather-view {
+        grid-template-columns: minmax(0, 1fr) clamp(166px, 18vw, 190px);
+        align-items: start;
+      }
+
+      .topbar,
+      .settings-panel {
+        grid-column: 1 / -1;
+      }
+
+      .chart-panel {
+        grid-column: 1;
+        min-width: 0;
+      }
+
+      .details {
+        display: contents;
+      }
+
+      .trend-panel {
+        grid-column: 2;
+        align-self: stretch;
+        padding: 8px;
+      }
+
+      .trend-panel h2 {
+        display: none;
+      }
+
+      .details .info-panel:not(.trend-panel) {
+        grid-column: 1 / -1;
+      }
+
+      .trend-grid {
+        grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+        gap: 5px;
+      }
+
+      .trend-item {
+        grid-template-rows: 1fr;
+        height: 32px;
+        padding: 4px 5px;
+      }
+
+      .trend-top {
+        grid-template-columns: minmax(24px, 45fr) minmax(0, 55fr);
+        gap: 4px;
+      }
+
+      .trend-label {
+        justify-content: flex-start;
+        color: var(--trend-color);
+      }
+
+      .trend-icon {
+        color: var(--trend-color);
+      }
+
+      .trend-value {
+        width: 100%;
+        max-width: none;
+        justify-content: flex-end;
+      }
+
+      .trend-number {
+        flex: 0 0 auto;
+        overflow: visible;
+        text-overflow: clip;
+      }
+
+      .trend-number {
+        font-size: 12px;
+      }
+
+      .trend-unit {
+        flex: 0 1 auto;
+        font-size: 9px;
+      }
+
+      .trend-panel .aq-history-range {
+        display: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1374,7 +1459,7 @@
     }
 
     function weekWindowStepHours() {
-      return layout.width >= 700 ? 8 : 12;
+      return 8;
     }
 
     function conditionStepHours() {
@@ -1382,7 +1467,7 @@
     }
 
     function rainAmountStepHours() {
-      return isWeekView() ? weekWindowStepHours() / 2 : 1;
+      return isWeekView() ? weekWindowStepHours() / 4 : 1;
     }
 
     function x(hour) {
@@ -2064,7 +2149,8 @@
           x: xPos,
           y: labelY,
           class: "axis-label temp-axis temp-axis-daily week-day-summary",
-          "text-anchor": "middle"
+          "text-anchor": "middle",
+          "dominant-baseline": "middle"
         });
         appendTspan(label, String(round(low)), { x: xPos, fill: tempColor(low) });
         appendTspan(label, "-", { fill: "var(--muted)" });
@@ -2315,6 +2401,10 @@
       return focusedMetric() === "rain" ? 1 : probabilityOpacity(value);
     }
 
+    function rainProbabilityChartOpacity(value) {
+      return rainProbabilityOpacity(value) * 0.6;
+    }
+
     function valueOpacity(key, value, maxOpacity = 1) {
       if (!Number.isFinite(value) || value <= 0) return 0;
       const range = rangeFor(key);
@@ -2379,7 +2469,7 @@
               stroke: colors.rain,
               "stroke-width": 3,
               "stroke-dasharray": "6 9",
-              "stroke-opacity": rainProbabilityOpacity((prev.pop + next.pop) / 2)
+              "stroke-opacity": rainProbabilityChartOpacity((prev.pop + next.pop) / 2)
             }));
           }
         } else {
@@ -2388,7 +2478,7 @@
             cy: y("pop", run[0].pop),
             r: 4,
             fill: colors.rain,
-            opacity: rainProbabilityOpacity(run[0].pop)
+            opacity: rainProbabilityChartOpacity(run[0].pop)
           }));
         }
       });
@@ -2405,7 +2495,7 @@
           height: bottom - layout.top,
           rx: 4,
           fill: colors.rain,
-          opacity: 0.9
+          opacity: 0.4
         }));
       });
     }
