@@ -413,7 +413,7 @@
 
     .chart-wrap {
       position: relative;
-      padding: 10px 0 6px;
+      padding: 4px 0 2px;
       touch-action: pan-y;
       user-select: none;
       -webkit-touch-callout: none;
@@ -949,6 +949,11 @@
         align-items: start;
       }
 
+      #weatherChart {
+        height: min(72vh, 440px);
+        min-height: min(340px, calc(100vh - 32px));
+      }
+
       .topbar,
       .settings-panel {
         grid-column: 1 / -1;
@@ -1312,10 +1317,11 @@
       layout.height = Math.max(320, Math.round(bounds.height || 560));
 
       const compact = layout.width < 520;
+      const tightVertical = isLandscapeViewport() && layout.height < 440;
       layout.left = 0;
       layout.right = 0;
-      layout.top = compact ? 58 : 70;
-      layout.bottom = compact ? 34 : 46;
+      layout.top = tightVertical ? 50 : compact ? 54 : 60;
+      layout.bottom = tightVertical ? 28 : compact ? 30 : 34;
 
       chartWidth = layout.width - layout.left - layout.right;
       chartHeight = layout.height - layout.top - layout.bottom;
@@ -1328,6 +1334,10 @@
       legend.style.setProperty("--legend-right", `${wrapRight + layout.right}px`);
     }
 
+    function timeAxisLabelY() {
+      return layout.height - 9;
+    }
+
     function isLandscapeViewport() {
       const visualViewport = window.visualViewport;
       const width = visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0;
@@ -1335,18 +1345,25 @@
       return width > height || window.matchMedia?.("(orientation: landscape)")?.matches || false;
     }
 
-    function scrollChartTopToViewport() {
+    function scrollChartLabelsIntoViewport() {
       if (!chartPanel || chartScrollLocked) return;
-      const viewportOffset = window.visualViewport?.offsetTop || 0;
-      const rect = chartPanel.getBoundingClientRect();
+      const visualViewport = window.visualViewport;
+      const viewportOffset = visualViewport?.offsetTop || 0;
+      const viewportHeight = visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 0;
+      const panelRect = chartPanel.getBoundingClientRect();
+      const svgRect = svg.getBoundingClientRect();
       const currentScrollY = window.scrollY || document.documentElement.scrollTop || 0;
-      const targetTop = Math.max(0, Math.round(currentScrollY + rect.top - viewportOffset));
+      const panelTopTarget = currentScrollY + panelRect.top - viewportOffset;
+      const labelBottomRatio = clamp((timeAxisLabelY() + 6) / Math.max(1, layout.height), 0, 1);
+      const labelBottom = svgRect.top + svgRect.height * labelBottomRatio;
+      const labelTarget = currentScrollY + labelBottom - viewportOffset - viewportHeight + 8;
+      const targetTop = Math.max(0, Math.round(Math.max(panelTopTarget, labelTarget)));
       window.scrollTo({ top: targetTop, left: window.scrollX || 0, behavior: "auto" });
     }
 
-    function scheduleChartTopScroll() {
+    function scheduleChartLabelScroll() {
       window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(scrollChartTopToViewport);
+        window.requestAnimationFrame(scrollChartLabelsIntoViewport);
       });
     }
 
@@ -1363,7 +1380,7 @@
         render();
         const shouldScrollToChart = pendingLandscapeChartScroll && isLandscapeViewport();
         pendingLandscapeChartScroll = false;
-        if (shouldScrollToChart) scheduleChartTopScroll();
+        if (shouldScrollToChart) scheduleChartLabelScroll();
       }, 80);
     }
 
@@ -1831,7 +1848,7 @@
           if (day >= 7) continue;
           const label = makeEl("text", {
             x: x(hour + 12),
-            y: layout.top + chartHeight + 30,
+            y: timeAxisLabelY(),
             class: "axis-label",
             "text-anchor": "middle"
           });
@@ -1853,7 +1870,7 @@
         }));
         const label = makeEl("text", {
           x: xx,
-          y: layout.top + chartHeight + 30,
+          y: timeAxisLabelY(),
           class: "axis-label",
           "text-anchor": hour === 0 ? "start" : hour === 24 ? "end" : "middle"
         });
@@ -4673,13 +4690,13 @@
       const verticalChange = Math.abs(chartPinchGesture.initialY - currentY);
       const startedOnHorizontalAxis = chartPinchGesture.initialX > chartPinchGesture.initialY * chartPinchAxisRatio;
       const zoomedOnXAxis = horizontalZoom >= chartPinchReturnThreshold && horizontalZoom > verticalChange * chartPinchAxisRatio;
-      const pinchedInOnXAxis = horizontalPinch >= chartPinchReturnThreshold && horizontalPinch > verticalChange * chartPinchAxisRatio;
+      const pinchedOutOnXAxis = -horizontalPinch >= chartPinchReturnThreshold && -horizontalPinch > verticalChange * chartPinchAxisRatio;
 
       if (!chartPinchGesture.triggered && !isWeekView() && startedOnHorizontalAxis && zoomedOnXAxis) {
         chartPinchGesture.triggered = true;
         chartPinchPointers.clear();
         applyWeekView(selectedDayOffset, { preserveSelectedHour: true });
-      } else if (!chartPinchGesture.triggered && isWeekView() && startedOnHorizontalAxis && pinchedInOnXAxis) {
+      } else if (!chartPinchGesture.triggered && isWeekView() && startedOnHorizontalAxis && pinchedOutOnXAxis) {
         chartPinchGesture.triggered = true;
         chartPinchPointers.clear();
         setSelectedDayOffset(0, { mode: "day" });
@@ -4827,6 +4844,7 @@
       }
     });
     window.addEventListener("resize", handleViewportResize);
+    window.visualViewport?.addEventListener("resize", handleViewportResize);
     window.addEventListener("orientationchange", () => {
       window.setTimeout(handleViewportResize, 0);
     });
