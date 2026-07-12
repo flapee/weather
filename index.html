@@ -41,6 +41,15 @@
       color: var(--text);
     }
 
+    body.is-chart-scrubbing {
+      position: fixed;
+      top: var(--chart-scroll-lock-top, 0);
+      left: 0;
+      right: 0;
+      width: 100%;
+      overflow: hidden;
+    }
+
     .page {
       width: min(1180px, 100%);
       margin: 0 auto;
@@ -424,6 +433,10 @@
     #weatherChart * {
       user-select: none;
       -webkit-user-select: none;
+    }
+
+    body.is-chart-scrubbing .chart-wrap {
+      touch-action: none;
     }
 
     .axis-label {
@@ -1185,6 +1198,8 @@
     let scrubberHideTimer = null;
     let chartLongPressTimer = null;
     let chartLongPressGesture = null;
+    let chartScrollLocked = false;
+    let chartScrollLockY = 0;
     const scrubberGestureThreshold = 8;
     const scrubberTapVisibleMs = 650;
     const chartLongPressMs = 260;
@@ -3824,6 +3839,27 @@
       if (chartWrap.hasPointerCapture(event.pointerId)) chartWrap.releasePointerCapture(event.pointerId);
     }
 
+    function lockChartScroll() {
+      if (chartScrollLocked) return;
+      chartScrollLocked = true;
+      chartScrollLockY = window.scrollY || document.documentElement.scrollTop || 0;
+      document.body.style.setProperty("--chart-scroll-lock-top", `-${chartScrollLockY}px`);
+      document.body.classList.add("is-chart-scrubbing");
+    }
+
+    function unlockChartScroll() {
+      if (!chartScrollLocked) return;
+      chartScrollLocked = false;
+      document.body.classList.remove("is-chart-scrubbing");
+      document.body.style.removeProperty("--chart-scroll-lock-top");
+      window.scrollTo(0, chartScrollLockY);
+    }
+
+    function preventTouchScrollWhileScrubbing(event) {
+      if (!chartScrollLocked || !event.cancelable) return;
+      event.preventDefault();
+    }
+
     function cancelPageSwipeForPointer(pointerId) {
       if (pageSwipeGesture && pageSwipeGesture.pointerId === pointerId) pageSwipeGesture.cancelled = true;
     }
@@ -3886,6 +3922,7 @@
       clearChartLongPressTimer();
       cancelPageSwipeForPointer(event.pointerId);
       preventNativeChartTouch(event);
+      if (event.pointerType !== "mouse") lockChartScroll();
       if (!chartWrap.hasPointerCapture(event.pointerId)) chartWrap.setPointerCapture(event.pointerId);
       if (chartGesture && chartGesture.pointerId === event.pointerId) chartGesture.active = true;
       setScrubberVisible(true);
@@ -4466,6 +4503,7 @@
       cancelChartLongPress();
       chartGesture = null;
       setScrubberVisible(false);
+      unlockChartScroll();
     }
 
     function beginChartPinch(event) {
@@ -4508,6 +4546,9 @@
     document.addEventListener("pointermove", updatePageSwipe);
     document.addEventListener("pointerup", finishPageSwipe);
     document.addEventListener("pointercancel", cancelPageSwipe);
+    document.addEventListener("touchmove", preventTouchScrollWhileScrubbing, { passive: false });
+    document.addEventListener("touchend", unlockChartScroll, { passive: true });
+    document.addEventListener("touchcancel", unlockChartScroll, { passive: true });
 
     chartWrap.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -4543,12 +4584,11 @@
 
       updateChartLongPress(event);
       if (!chartGesture.active) {
-        if (Math.max(absX, absY) < scrubberGestureThreshold) return;
-        if (absY > absX * pageSwipeAxisRatio) {
+        if (Math.max(absX, absY) > chartLongPressMoveTolerance) {
           cancelChartLongPress(event.pointerId);
           chartGesture = null;
-          return;
         }
+        return;
       }
 
       activateChartScrub(event);
@@ -4560,15 +4600,10 @@
       const wasChartGesture = chartGesture && chartGesture.pointerId === event.pointerId;
       const wasActiveScrub = wasChartGesture && chartGesture.active;
 
-      if (wasChartGesture && !wasActiveScrub && event.pointerType !== "mouse") {
-        setScrubberVisible(true);
-        handlePointer(event);
-        scheduleScrubberHide();
-      } else {
-        setScrubberVisible(false);
-      }
+      setScrubberVisible(false);
 
       releaseChartPointer(event);
+      unlockChartScroll();
       if (wasChartGesture) chartGesture = null;
     });
 
@@ -4578,6 +4613,7 @@
       releaseChartPointer(event);
       if (chartGesture && chartGesture.pointerId === event.pointerId) chartGesture = null;
       setScrubberVisible(false);
+      unlockChartScroll();
     });
 
     chartWrap.addEventListener("lostpointercapture", (event) => {
@@ -4585,6 +4621,7 @@
       endChartPinch(event);
       if (chartGesture && chartGesture.pointerId === event.pointerId) chartGesture = null;
       setScrubberVisible(false);
+      unlockChartScroll();
     });
 
     chartWrap.addEventListener("contextmenu", (event) => event.preventDefault());
