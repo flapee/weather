@@ -983,7 +983,7 @@
       }
 
       .trend-grid {
-        grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+        grid-template-columns: minmax(0, 1fr);
         gap: 5px;
       }
 
@@ -1271,6 +1271,8 @@
     let openMeteoReferenceDate = "";
     let openMeteoLocation = null;
     let openMeteoAirQualityNote = "Air quality not loaded.";
+    let openMeteoLoadInFlight = false;
+    let lastOpenMeteoFetchAt = null;
     let sunEventsByDate = new Map();
     let airQualityComparisons = [];
     let airQualityComparisonState = "idle";
@@ -1304,6 +1306,7 @@
     const pageSwipeAxisRatio = 1.45;
     const chartPinchReturnThreshold = 44;
     const chartPinchAxisRatio = 1.35;
+    const weatherRefreshIntervalMs = 60 * 60 * 1000;
     let currentWeather = {
       actual: 23,
       feels: 23,
@@ -2201,7 +2204,7 @@
 
     function drawWeekDailySummaries(group) {
       if (!isWeekView()) return;
-      const labelY = layout.top - 13;
+      const labelY = layout.top - 5;
       for (let day = 0; day < 7; day += 1) {
         const rows = forecast.filter((row) => row.h >= day * 24 && row.h < (day + 1) * 24);
         if (!rows.length) continue;
@@ -2215,7 +2218,7 @@
           y: labelY,
           class: "axis-label temp-axis temp-axis-daily week-day-summary",
           "text-anchor": "middle",
-          "dominant-baseline": "middle"
+          "dominant-baseline": "text-after-edge"
         });
         appendTspan(label, String(round(low)), { x: xPos, fill: tempColor(low) });
         appendTspan(label, "-", { fill: "var(--muted)" });
@@ -4176,6 +4179,24 @@
       dataStatus.textContent = text;
     }
 
+    function formatUpdatedTime(date) {
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return "";
+      return new Intl.DateTimeFormat("en", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }).format(date);
+    }
+
+    function freshnessStatus() {
+      const updated = formatUpdatedTime(lastOpenMeteoFetchAt);
+      return updated ? ` Updated ${updated}.` : "";
+    }
+
+    function openMeteoDataIsStale() {
+      return !lastOpenMeteoFetchAt || Date.now() - lastOpenMeteoFetchAt.getTime() >= weatherRefreshIntervalMs;
+    }
+
     function isoDateFromTime(time) {
       return String(time || "").slice(0, 10);
     }
@@ -4443,7 +4464,7 @@
         description: conditionDescription(chipWeather.weatherCode)
       };
 
-      setStatus(`Live Open-Meteo data for ${openMeteoLocation.lat.toFixed(4)}, ${openMeteoLocation.lon.toFixed(4)}. Showing ${dayOffsetLabel(selectedDayOffset)} (${selectedDate}). Normalized against returned hourly range. ${openMeteoAirQualityNote}`);
+      setStatus(`Live Open-Meteo data for ${openMeteoLocation.lat.toFixed(4)}, ${openMeteoLocation.lon.toFixed(4)}. Showing ${dayOffsetLabel(selectedDayOffset)} (${selectedDate}). Normalized against returned hourly range. ${openMeteoAirQualityNote}${freshnessStatus()}`);
       setAirComparisonLoading();
       render();
       loadAirQualityComparisons(selectedDate);
@@ -4496,7 +4517,7 @@
       airQualityComparisonRequestId += 1;
       airQualityComparisons = [];
       airQualityComparisonState = "idle";
-      setStatus(`Live Open-Meteo data for ${openMeteoLocation.lat.toFixed(4)}, ${openMeteoLocation.lon.toFixed(4)}. Showing ${formatWeekRangeLabel()}. Normalized against returned hourly range. ${openMeteoAirQualityNote}`);
+      setStatus(`Live Open-Meteo data for ${openMeteoLocation.lat.toFixed(4)}, ${openMeteoLocation.lon.toFixed(4)}. Showing ${formatWeekRangeLabel()}. Normalized against returned hourly range. ${openMeteoAirQualityNote}${freshnessStatus()}`);
       render();
       return true;
     }
@@ -4515,7 +4536,41 @@
       return true;
     }
 
-    function applyOpenMeteo(payload, lat, lon, airPayload = null, airError = "") {
+    function openMeteoViewSnapshot() {
+      return {
+        mode: chartMode,
+        offset: selectedDayOffset,
+        hour: selectedHour,
+        date: selectedOpenMeteoDate()
+      };
+    }
+
+    function preservedViewOffset(snapshot) {
+      if (!snapshot || snapshot.offset === 0) return 0;
+      if (snapshot.date && openMeteoReferenceDate) return daysBetween(openMeteoReferenceDate, snapshot.date);
+      return snapshot.offset;
+    }
+
+    function applyPreservedOpenMeteoView(snapshot) {
+      if (!snapshot) return false;
+      const offset = preservedViewOffset(snapshot);
+      selectedHour = clamp(snapshot.hour, 0, snapshot.mode === "week" ? 24 * 7 : 24);
+
+      if (snapshot.mode === "week" && hasOpenMeteoWeek(offset)) {
+        return applyWeekView(offset, { preserveSelectedHour: true });
+      }
+
+      if (hasOpenMeteoDay(offset)) {
+        selectedDayOffset = offset;
+        applySelectedOpenMeteoDay();
+        return true;
+      }
+
+      return false;
+    }
+
+    function applyOpenMeteo(payload, lat, lon, airPayload = null, airError = "", options = {}) {
+      const previousView = options.preserveView ? openMeteoViewSnapshot() : null;
       const rows = mergeAirQualityRows(mapOpenMeteoRows(payload), airPayload);
       if (!rows.length) throw new Error("Open-Meteo returned no hourly rows.");
 
@@ -4526,23 +4581,31 @@
       openMeteoLocation = { lat, lon, name: inferLocationName(lat, lon) };
       openMeteoAirQualityNote = describeAirQualityAvailability(rows, airPayload, airError);
       sunEventsByDate = mapSunEvents(payload);
-      selectedDayOffset = 0;
-      selectedHour = clamp(Number.isFinite(hourFromTime(openMeteoCurrentTime)) ? hourFromTime(openMeteoCurrentTime) : selectedHour, 0, 24);
       localStorage.setItem("weatherLat", String(lat));
       localStorage.setItem("weatherLon", String(lon));
+
+      if (applyPreservedOpenMeteoView(previousView)) return;
+
+      selectedDayOffset = 0;
+      selectedHour = clamp(Number.isFinite(hourFromTime(openMeteoCurrentTime)) ? hourFromTime(openMeteoCurrentTime) : selectedHour, 0, 24);
       applySelectedOpenMeteoDay();
     }
 
-    async function loadOpenMeteo() {
+    async function loadOpenMeteo(options = {}) {
+      if (openMeteoLoadInFlight) return false;
+
+      const preserveView = Boolean(options.preserveView);
+      const background = Boolean(options.background);
       const lat = Number(latitudeInput.value);
       const lon = Number(longitudeInput.value);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
         setStatus("Enter valid latitude and longitude.");
-        return;
+        return false;
       }
 
+      openMeteoLoadInFlight = true;
       loadWeather.disabled = true;
-      setStatus("Loading Open-Meteo weather and air-quality history...");
+      if (!background) setStatus("Loading Open-Meteo weather and air-quality history...");
       const hourly = [
         "temperature_2m",
         "apparent_temperature",
@@ -4594,12 +4657,13 @@
 
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+      const fetchOptions = { signal: controller.signal, cache: "no-store" };
       try {
-        const weatherRequest = fetch(`https://api.open-meteo.com/v1/forecast?${params}`, { signal: controller.signal }).then((response) => {
+        const weatherRequest = fetch(`https://api.open-meteo.com/v1/forecast?${params}`, fetchOptions).then((response) => {
           if (!response.ok) throw new Error(`Open-Meteo weather returned ${response.status}`);
           return response.json();
         });
-        const airRequest = fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${airParams}`, { signal: controller.signal }).then((response) => {
+        const airRequest = fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?${airParams}`, fetchOptions).then((response) => {
           if (!response.ok) throw new Error(`Open-Meteo air quality returned ${response.status}`);
           return response.json();
         });
@@ -4607,9 +4671,16 @@
         if (weatherResult.status !== "fulfilled") throw weatherResult.reason;
         const airPayload = airResult.status === "fulfilled" ? airResult.value : null;
         const airError = airResult.status === "rejected" ? airResult.reason?.message || "Air-quality request failed" : "";
-        applyOpenMeteo(weatherResult.value, lat, lon, airPayload, airError);
+        lastOpenMeteoFetchAt = new Date();
+        applyOpenMeteo(weatherResult.value, lat, lon, airPayload, airError, { preserveView });
+        return true;
       } catch (error) {
         console.warn(error);
+        if (background && openMeteoRows.length) {
+          setStatus(`Could not refresh Open-Meteo. Keeping last data.${freshnessStatus()}`);
+          return false;
+        }
+
         forecast = sampleForecast.map((d) => ({ ...d }));
         ranges = computeRanges(sampleForecast);
         openMeteoRows = [];
@@ -4618,6 +4689,7 @@
         openMeteoReferenceDate = "";
         openMeteoLocation = null;
         openMeteoAirQualityNote = "Air quality not loaded.";
+        lastOpenMeteoFetchAt = null;
         sunEventsByDate = new Map();
         airQualityComparisonRequestId += 1;
         airQualityComparisonState = "idle";
@@ -4628,10 +4700,22 @@
         selectedHour = 18;
         setStatus("Could not load Open-Meteo. Showing sample data.");
         render();
+        return false;
       } finally {
         window.clearTimeout(timeoutId);
+        openMeteoLoadInFlight = false;
         loadWeather.disabled = false;
       }
+    }
+
+    function refreshOpenMeteoInBackground() {
+      if (document.hidden) return false;
+      return loadOpenMeteo({ preserveView: true, background: true });
+    }
+
+    function refreshOpenMeteoIfStale() {
+      if (document.hidden || !openMeteoDataIsStale()) return false;
+      return refreshOpenMeteoInBackground();
     }
 
     function restoreSavedCoordinates() {
@@ -4893,6 +4977,12 @@
     window.addEventListener("orientationchange", () => {
       window.setTimeout(handleViewportResize, 0);
     });
+    window.addEventListener("focus", refreshOpenMeteoIfStale);
+    window.addEventListener("online", refreshOpenMeteoIfStale);
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) refreshOpenMeteoIfStale();
+    });
+    window.setInterval(refreshOpenMeteoInBackground, weatherRefreshIntervalMs);
 
     restoreSavedCoordinates();
     render();
